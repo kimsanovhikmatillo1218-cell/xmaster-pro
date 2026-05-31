@@ -1,28 +1,70 @@
 {
   "name": "xmaster-pro",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.0.0",
+  "description": "X-MASTER Pro — O'quv Markaz Boshqaruvi Tizimi",
   "type": "module",
+  "homepage": "https://kimsanovhikmatillo1218-cell.github.io/xmaster-pro",
+  "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "dev":            "vite",
+    "build":          "vite build",
+    "preview":        "vite preview",
+    "deploy":         "gh-pages -d dist",
+    "electron:dev":   "cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "cap:add:android":"npx cap add android",
+    "cap:add:ios":    "npx cap add ios",
+    "cap:sync":       "npx cap sync",
+    "cap:open:android":"npx cap open android",
+    "cap:open:ios":   "npx cap open ios"
+  },
+  "build": {
+    "appId":       "uz.xmaster.pro",
+    "productName": "X-MASTER Pro",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "electron/**/*"],
+    "win": {
+      "target":  [{ "target": "nsis", "arch": ["x64"] }],
+      "icon":    "dist/favicon.svg"
+    },
+    "mac": {
+      "target":  "dmg",
+      "icon":    "dist/favicon.svg"
+    },
+    "linux": {
+      "target":  "AppImage"
+    },
+    "nsis": {
+      "oneClick":           false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon":      "dist/favicon.svg",
+      "installerHeaderIcon":"dist/favicon.svg",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName":       "X-MASTER Pro"
+    }
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react":                 "^19.2.6",
+    "react-dom":             "^19.2.6"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^10.3.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
-    "vite": "^8.0.12"
+    "@eslint/js":               "^10.0.1",
+    "@types/react":             "^19.2.14",
+    "@types/react-dom":         "^19.2.3",
+    "@vitejs/plugin-react":     "^6.0.1",
+    "concurrently":             "^8.2.2",
+    "cross-env":                "^7.0.3",
+    "electron":                 "^31.0.0",
+    "electron-builder":         "^24.13.3",
+    "eslint":                   "^10.0.0",
+    "eslint-plugin-react-hooks":"^7.1.1",
+    "eslint-plugin-react-refresh":"^0.5.2",
+    "gh-pages":                 "^6.3.0",
+    "globals":                  "^17.6.0",
+    "vite":                     "^8.0.12",
+    "wait-on":                  "^7.2.0"
   }
 }

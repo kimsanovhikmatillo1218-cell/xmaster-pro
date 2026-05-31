@@ -1,0 +1,2095 @@
+import {
+  createContext, useCallback, useContext,
+  useEffect, useMemo, useReducer, useRef, useState
+} from "react";
+import { supabase as db } from "./lib/supabase.js";
+import "./index.css";
+
+/* ═══════════════════════════════════════════════════════════════════
+   i18n — Uzbek / Russian / English
+══════════════════════════════════════════════════════════════════════ */
+const LANG = {
+  uz: {
+    dashboard:"Umumiy ko'rinish", students:"Talabalar", groups:"Guruhlar", teachers:"O'qituvchilar",
+    finance:"Moliya", payments:"To'lovlar", salaries:"Maoshlar", expenses:"Xarajatlar", debtors:"Qarzdorlar",
+    attendance:"Davomat", schedule:"Jadval", leads:"Lidlar", reports:"Hisobotlar", settings:"Sozlamalar",
+    search:"Qidiruv...", branch:"Asosiy filial", addStudent:"Yangi talaba", addGroup:"Yangi guruh",
+    addPayment:"To'lov qabul", addExpense:"Xarajat qo'shish", export:"Excel",
+    active:"Faol", frozen:"Muzlatilgan", archived:"Arxiv", list:"Ro'yxat", analytics:"Analitika",
+    notifications:"Bildirishnomalar", all:"Barchasi", name:"FISH", phone:"Telefon", group:"Guruh",
+    balance:"Balans", status:"Holat", actions:"Amal", amount:"Summa", method:"Usul",
+    date:"Sana", teacher:"O'qituvchi", subject:"Fan", capacity:"Sig'im", income:"Daromad",
+    expense:"Xarajat", profit:"Sof foyda", newLeads:"Yangi lidlar", recentPayments:"So'nggi to'lovlar",
+    groupStatus:"Guruhlar holati", systemMessages:"Tizim xabarlari", kanban:"Kanban",
+    weekly:"Haftalik", financial:"Moliyaviy", studentGrowth:"Talabalar o'sishi",
+    attendanceReport:"Davomat hisoboti", sourceReport:"Lidlar manbasi",
+    centerInfo:"Markaz ma'lumoti", roles:"Rollar / Ruxsatlar", integrations:"Integratsiyalar",
+    save:"Saqlash", cancel:"Bekor qilish", edit:"Tahrirlash", delete:"O'chirish",
+    noData:"Ma'lumot yo'q", loading:"Yuklanmoqda...", confirm:"Tasdiqlash",
+    confirmDelete:"O'chirasizmi? Bu amalni qaytarib bo'lmaydi.",
+    markAllRead:"✓ Barchasi o'qildi", refresh:"Yangilash", darkMode:"Qorong'i rejim",
+    lightMode:"Yorug' rejim", lastSync:"Yangilangan",
+  },
+  ru: {
+    dashboard:"Обзор", students:"Ученики", groups:"Группы", teachers:"Учителя",
+    finance:"Финансы", payments:"Платежи", salaries:"Зарплаты", expenses:"Расходы", debtors:"Должники",
+    attendance:"Посещаемость", schedule:"Расписание", leads:"Лиды", reports:"Отчёты", settings:"Настройки",
+    search:"Поиск...", branch:"Основной филиал", addStudent:"Новый ученик", addGroup:"Новая группа",
+    addPayment:"Принять оплату", addExpense:"Добавить расход", export:"Excel",
+    active:"Активный", frozen:"Заморожен", archived:"Архив", list:"Список", analytics:"Аналитика",
+    notifications:"Уведомления", all:"Все", name:"ФИО", phone:"Телефон", group:"Группа",
+    balance:"Баланс", status:"Статус", actions:"Действие", amount:"Сумма", method:"Метод",
+    date:"Дата", teacher:"Учитель", subject:"Предмет", capacity:"Места", income:"Доход",
+    expense:"Расход", profit:"Чистая прибыль", newLeads:"Новые лиды", recentPayments:"Последние платежи",
+    groupStatus:"Состояние групп", systemMessages:"Сообщения системы", kanban:"Канбан",
+    weekly:"Неделя", financial:"Финансы", studentGrowth:"Рост учеников",
+    attendanceReport:"Отчёт посещаемости", sourceReport:"Источники лидов",
+    centerInfo:"Информация центра", roles:"Роли / Доступ", integrations:"Интеграции",
+    save:"Сохранить", cancel:"Отмена", edit:"Изменить", delete:"Удалить",
+    noData:"Нет данных", loading:"Загрузка...", confirm:"Подтвердить",
+    confirmDelete:"Удалить? Это действие необратимо.",
+    markAllRead:"✓ Отметить все прочитанными", refresh:"Обновить",
+    darkMode:"Тёмный режим", lightMode:"Светлый режим", lastSync:"Обновлено",
+  },
+  en: {
+    dashboard:"Overview", students:"Students", groups:"Groups", teachers:"Teachers",
+    finance:"Finance", payments:"Payments", salaries:"Salaries", expenses:"Expenses", debtors:"Debtors",
+    attendance:"Attendance", schedule:"Schedule", leads:"Leads", reports:"Reports", settings:"Settings",
+    search:"Search...", branch:"Main branch", addStudent:"New student", addGroup:"New group",
+    addPayment:"Receive payment", addExpense:"Add expense", export:"Export",
+    active:"Active", frozen:"Frozen", archived:"Archive", list:"List", analytics:"Analytics",
+    notifications:"Notifications", all:"All", name:"Full name", phone:"Phone", group:"Group",
+    balance:"Balance", status:"Status", actions:"Action", amount:"Amount", method:"Method",
+    date:"Date", teacher:"Teacher", subject:"Subject", capacity:"Capacity", income:"Income",
+    expense:"Expense", profit:"Net profit", newLeads:"New leads", recentPayments:"Recent payments",
+    groupStatus:"Group status", systemMessages:"System messages", kanban:"Kanban board",
+    weekly:"Weekly", financial:"Financial", studentGrowth:"Student growth",
+    attendanceReport:"Attendance report", sourceReport:"Lead sources",
+    centerInfo:"Center info", roles:"Roles / Permissions", integrations:"Integrations",
+    save:"Save", cancel:"Cancel", edit:"Edit", delete:"Delete",
+    noData:"No data", loading:"Loading...", confirm:"Confirm",
+    confirmDelete:"Delete this? This action cannot be undone.",
+    markAllRead:"✓ Mark all read", refresh:"Refresh",
+    darkMode:"Dark mode", lightMode:"Light mode", lastSync:"Updated",
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   Constants
+══════════════════════════════════════════════════════════════════════ */
+const TABLES = [
+  "branches","study_groups","teachers","students",
+  "payments","expenses","attendance","schedules","leads","notifications","settings"
+];
+const ORDERED = new Set([
+  "students","payments","expenses","attendance","leads","notifications","schedules"
+]);
+const PAGES = [
+  { id:"dash",     key:"dashboard",  icon:"▦"  },
+  { id:"students", key:"students",   icon:"👥" },
+  { id:"groups",   key:"groups",     icon:"🎓" },
+  { id:"teachers", key:"teachers",   icon:"🧑‍🏫" },
+  { id:"finance",  key:"finance",    icon:"💳" },
+  { id:"attend",   key:"attendance", icon:"✓"  },
+  { id:"sched",    key:"schedule",   icon:"📅" },
+  { id:"leads",    key:"leads",      icon:"📣", dot:true },
+  { id:"reports",  key:"reports",    icon:"📊" },
+  { id:"settings", key:"settings",   icon:"⚙️" },
+];
+const STAGES = [
+  { id:"new",      label:"So'rov",          color:"blue"   },
+  { id:"contact",  label:"Bog'lanish",       color:"orange" },
+  { id:"trial",    label:"Sinov darsi",      color:"purple" },
+  { id:"enrolled", label:"Guruhga yozildi",  color:"green"  },
+];
+const DEFAULT_DATA = Object.fromEntries(TABLES.map(t => [t, []]));
+const PER_PAGE = 20;
+
+/* ═══════════════════════════════════════════════════════════════════
+   Utilities
+══════════════════════════════════════════════════════════════════════ */
+const sum      = (a, k)  => (a||[]).reduce((s,x) => s + Number(x[k]||0), 0);
+const money    = (n)     => new Intl.NumberFormat("uz-UZ").format(Number(n||0)) + " so'm";
+const short    = (n)     => { n = Number(n||0); if(Math.abs(n)>=1_000_000) return (n/1_000_000).toFixed(1)+"M"; if(Math.abs(n)>=1_000) return Math.round(n/1_000)+"K"; return String(n); };
+const initials = (s="")  => s.split(" ").filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase()||"XM";
+const fmtDate  = (d)     => { if(!d) return "—"; return new Date(d).toLocaleDateString("uz-UZ",{day:"2-digit",month:"short"}); };
+const fmtFull  = (d)     => { if(!d) return "—"; return new Date(d).toLocaleDateString("uz-UZ",{day:"2-digit",month:"short",year:"numeric"}); };
+const fmtTime  = (d)     => { if(!d) return "—"; const dt=new Date(d); return dt.toLocaleTimeString("uz-UZ",{hour:"2-digit",minute:"2-digit"}); };
+const attRate  = (rows)  => { if(!rows?.length) return 0; return Math.round(rows.filter(r=>r.status==="present").length/rows.length*100); };
+const sAttRate = (name, rows) => { const r=(rows||[]).filter(a=>a.student_name===name); if(!r.length) return 0; return Math.round(r.filter(a=>a.status==="present").length/r.length*100); };
+const exportCSV = (rows, name) => {
+  if(!rows?.length) return;
+  const keys = Object.keys(rows[0]);
+  const csv  = [keys.join(","), ...rows.map(r=>keys.map(k=>JSON.stringify(r[k]??"")).join(","))].join("\n");
+  Object.assign(document.createElement("a"),{
+    href:"data:text/csv;charset=utf-8,"+encodeURIComponent(csv), download:name+".csv"
+  }).click();
+};
+const useDebounce = (value, delay=300) => {
+  const [dv, setDv] = useState(value);
+  useEffect(()=>{ const t=setTimeout(()=>setDv(value),delay); return()=>clearTimeout(t); },[value,delay]);
+  return dv;
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   Toast Context
+══════════════════════════════════════════════════════════════════════ */
+const ToastCtx = createContext(()=>{});
+const useToast = () => useContext(ToastCtx);
+
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const remove = useCallback(id => setToasts(t=>t.filter(x=>x.id!==id)), []);
+  const add    = useCallback((msg, type="success") => {
+    const id = Date.now() + Math.random();
+    setToasts(t=>[...t.slice(-4),{id,msg,type}]);
+    setTimeout(()=>remove(id), 3800);
+  }, [remove]);
+  return (
+    <ToastCtx.Provider value={add}>
+      {children}
+      <div className="toast-wrap" aria-live="polite" aria-atomic="false">
+        {toasts.map(toast=>(
+          <div key={toast.id} className={`toast toast-${toast.type}`} role="alert"
+            onClick={()=>remove(toast.id)}>
+            <span className="toast-icon">
+              {toast.type==="success"?"✓":toast.type==="error"?"✕":"!"}
+            </span>
+            {toast.msg}
+          </div>
+        ))}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Confirm Context
+══════════════════════════════════════════════════════════════════════ */
+const ConfirmCtx = createContext(async()=>false);
+const useConfirm = () => useContext(ConfirmCtx);
+
+function ConfirmProvider({ children }) {
+  const [state, setState] = useState(null);
+  const confirm = useCallback(msg => new Promise(res => setState({msg,res})), []);
+  const handle  = yes => { state?.res(yes); setState(null); };
+
+  useEffect(()=>{
+    if(!state) return;
+    const onKey = e => { if(e.key==="Escape") handle(false); if(e.key==="Enter") handle(true); };
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  }, [state]);
+
+  return (
+    <ConfirmCtx.Provider value={confirm}>
+      {children}
+      {state && (
+        <div className="modal-backdrop" style={{zIndex:300}} onClick={()=>handle(false)}>
+          <div className="confirm-box" role="alertdialog" aria-modal="true"
+            aria-labelledby="confirm-msg" onClick={e=>e.stopPropagation()}>
+            <div className="confirm-icon">⚠</div>
+            <p className="confirm-msg" id="confirm-msg">{state.msg}</p>
+            <div className="confirm-btns">
+              <button className="btn btn-ghost" onClick={()=>handle(false)}>Bekor qilish</button>
+              <button className="btn btn-danger" onClick={()=>handle(true)} autoFocus>O'chirish</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </ConfirmCtx.Provider>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Data Reducer
+══════════════════════════════════════════════════════════════════════ */
+function dataReducer(state, action) {
+  switch(action.type) {
+    case "SET_ALL":   return { ...state, ...action.payload };
+    case "SET_TABLE": return { ...state, [action.table]: action.rows };
+    default:          return state;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   App Root
+══════════════════════════════════════════════════════════════════════ */
+export default function App() {
+  return (
+    <ToastProvider>
+      <ConfirmProvider>
+        <AppInner/>
+      </ConfirmProvider>
+    </ToastProvider>
+  );
+}
+
+function AppInner() {
+  const toast = useToast();
+
+  /* ── Persistent state ─────────────────────────────────────────── */
+  const [lang,    setLang]    = useState(()=>localStorage.getItem("xm_lang")  || "uz");
+  const [theme,   setTheme]   = useState(()=>localStorage.getItem("xm_theme") || "light");
+  const [page,    setPage]    = useState("dash");
+  const [sub,     setSub]     = useState("home");
+  const [query,   setQuery]   = useState("");
+  const [data,    dispatch]   = useReducer(dataReducer, DEFAULT_DATA);
+  const [loading, setLoading] = useState(false);
+  const [modal,   setModal]   = useState(null);
+  const [detail,  setDetail]  = useState(null);
+  const [lastSync,setLastSync]= useState(null);
+
+  const debouncedQuery = useDebounce(query, 280);
+  const t = LANG[lang];
+
+  /* ── Side effects ─────────────────────────────────────────────── */
+  useEffect(()=>{ document.body.classList.toggle("dark",theme==="dark"); localStorage.setItem("xm_theme",theme); },[theme]);
+  useEffect(()=>{ localStorage.setItem("xm_lang",lang); },[lang]);
+
+  /* ── Load all tables ──────────────────────────────────────────── */
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const results = await Promise.all(
+        TABLES.map(async table => {
+          let q = db.from(table).select("*");
+          if(ORDERED.has(table)) q = q.order("created_at",{ascending:false});
+          const { data:rows, error } = await q;
+          return [table, error ? [] : (rows||[])];
+        })
+      );
+      dispatch({ type:"SET_ALL", payload:Object.fromEntries(results) });
+      setLastSync(new Date());
+    } catch {
+      toast("Ma'lumotlar yuklanmadi","error");
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(()=>{ loadAll(); },[loadAll]);
+
+  /* ── Real-time subscriptions ──────────────────────────────────── */
+  useEffect(()=>{
+    const channel = db.channel("xmaster-rt")
+      .on("postgres_changes",{event:"*",schema:"public"},()=>loadAll())
+      .subscribe();
+    return ()=>db.removeChannel(channel);
+  },[loadAll]);
+
+  /* ── Keyboard shortcuts ───────────────────────────────────────── */
+  useEffect(()=>{
+    const onKey = e => {
+      if(e.key==="Escape"){ setModal(null); setDetail(null); }
+      if(e.ctrlKey && e.key==="k"){ e.preventDefault(); document.getElementById("xm-search")?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[]);
+
+  /* ── Mark all notifications read ─────────────────────────────── */
+  const markAllRead = useCallback(async () => {
+    const { error } = await db.from("notifications").update({is_read:true}).eq("is_read",false);
+    if(error) return toast(error.message,"error");
+    toast("Barchasi o'qildi deb belgilandi");
+    loadAll();
+  },[loadAll, toast]);
+
+  /* ── Derived stats ────────────────────────────────────────────── */
+  const stats = useMemo(()=>{
+    const income  = sum(data.payments,  "amount");
+    const expense = sum(data.expenses,  "amount");
+    const debtors = data.students.filter(s=>Number(s.balance||0)<0);
+    return {
+      income, expense,
+      profit:  income - expense,
+      active:  data.students.filter(s=>(s.status||"active")==="active").length,
+      debtors: debtors.length,
+      debt:    debtors.reduce((a,b)=>a+Math.abs(Number(b.balance||0)),0),
+      unread:  data.notifications.filter(n=>!n.is_read).length,
+      groups:  data.study_groups.length,
+      teachers:data.teachers.length,
+    };
+  },[data]);
+
+  /* ── Filtered students ────────────────────────────────────────── */
+  const filteredStudents = useMemo(()=>{
+    const q = debouncedQuery.toLowerCase().trim();
+    return data.students.filter(s=>
+      !q || [s.full_name,s.phone,s.parent_phone,s.group_name].join(" ").toLowerCase().includes(q)
+    );
+  },[data.students, debouncedQuery]);
+
+  const nav = useCallback((id)=>{ setPage(id); setSub("home"); },[]);
+
+  const shared = { t, data, stats, sub, setSub, setModal, setDetail, loadAll, nav, markAllRead };
+
+  return (
+    <div className="shell">
+
+      {/* ── Icon Bar ─────────────────────────────────────────────── */}
+      <aside className="iconbar" role="navigation" aria-label="Ana navigatsiya">
+        <div className="ib-logo" title="X-MASTER">XM</div>
+        {PAGES.slice(0,4).map(p=>(
+          <IbBtn key={p.id} p={p} active={page===p.id} nav={nav} t={t}/>
+        ))}
+        <div className="ib-sep"/>
+        {PAGES.slice(4,9).map(p=>(
+          <IbBtn key={p.id} p={p} active={page===p.id} nav={nav} t={t} badge={p.dot?stats.unread:0}/>
+        ))}
+        <div className="ib-sep"/>
+        <IbBtn p={PAGES[9]} active={page==="settings"} nav={nav} t={t} extra="stick"/>
+      </aside>
+
+      {/* ── Sidebar ──────────────────────────────────────────────── */}
+      <aside className="sidebar" role="complementary">
+        <div className="sb-head">
+          <div className="sb-brand">
+            <div className="sb-logo">XM</div>
+            <div>
+              <div className="sb-title">X-MASTER</div>
+              <div className="sb-sub">Education CRM</div>
+            </div>
+          </div>
+          <label className="sb-search">
+            <span className="sb-search-icon">⌕</span>
+            <input
+              id="xm-search"
+              value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder={t.search}
+              aria-label="Qidiruv"
+              autoComplete="off"
+            />
+            {query && <button className="sb-clear" onClick={()=>setQuery("")} aria-label="Tozalash">×</button>}
+            <kbd className="sb-kbd">⌃K</kbd>
+          </label>
+        </div>
+
+        <SideNav page={page} sub={sub} setSub={setSub} t={t} data={data} stats={stats} setModal={setModal}/>
+
+        <div className="sb-user">
+          <div className="sb-avatar">A</div>
+          <div className="sb-user-info">
+            <div className="sb-uname">Admin</div>
+            <div className="sb-urole"><span className="online-dot"/>Superadmin</div>
+          </div>
+          <span className="chev">›</span>
+        </div>
+      </aside>
+
+      {/* ── Main ─────────────────────────────────────────────────── */}
+      <main className="main">
+        <header className="topbar">
+          <div className="tb-left">
+            <div className="tb-title">{t[PAGES.find(x=>x.id===page)?.key]}</div>
+            <div className="tb-breadcrumb">
+              <span>X-MASTER</span>
+              <span className="tb-sep">›</span>
+              <span>{t[PAGES.find(x=>x.id===page)?.key]}</span>
+              {lastSync && (
+                <>
+                  <span className="tb-sep">·</span>
+                  <span className="tb-sync">{t.lastSync}: {fmtTime(lastSync)}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="tb-right">
+            <button className="tb-icon-btn" onClick={loadAll}
+              title={`${t.refresh} (F5)`} aria-label={t.refresh}>
+              <span className={loading?"spin":""}>↻</span>
+            </button>
+            <button className="tb-icon-btn"
+              onClick={()=>setTheme(v=>v==="dark"?"light":"dark")}
+              title={theme==="dark"?t.lightMode:t.darkMode}
+              aria-label={theme==="dark"?t.lightMode:t.darkMode}>
+              {theme==="dark"?"☀":"☾"}
+            </button>
+            <select className="tb-chip lang-sel" value={lang} onChange={e=>setLang(e.target.value)}
+              aria-label="Til tanlash">
+              <option value="uz">🇺🇿 UZ</option>
+              <option value="ru">🇷🇺 RU</option>
+              <option value="en">🇬🇧 EN</option>
+            </select>
+            <div className="tb-chip">
+              <span className="dot"/>
+              <span>{data.branches[0]?.name || t.branch}</span>
+            </div>
+            {stats.unread>0 && (
+              <button className="tb-notif" onClick={()=>{ nav("dash"); setSub("notifications"); }}
+                aria-label={`${stats.unread} o'qilmagan bildirishnoma`}>
+                🔔<span className="tb-notif-badge">{stats.unread}</span>
+              </button>
+            )}
+          </div>
+        </header>
+
+        <div className="content">
+          {loading && <div className="loading-bar"><div className="loading-progress"/></div>}
+          {page==="dash"     && <Dashboard     {...shared} filteredStudents={filteredStudents}/>}
+          {page==="students" && <Students      {...shared} rows={filteredStudents}/>}
+          {page==="groups"   && <Groups        {...shared} rows={data.study_groups}/>}
+          {page==="teachers" && <Teachers      {...shared} rows={data.teachers}/>}
+          {page==="finance"  && <Finance       {...shared}/>}
+          {page==="attend"   && <Attendance    {...shared}/>}
+          {page==="sched"    && <Schedule      {...shared}/>}
+          {page==="leads"    && <Leads         {...shared} rows={data.leads}/>}
+          {page==="reports"  && <Reports       {...shared}/>}
+          {page==="settings" && <Settings      {...shared}/>}
+        </div>
+      </main>
+
+      {/* ── Overlays ─────────────────────────────────────────────── */}
+      {modal  && <Modal  modal={modal}   t={t} data={data} close={()=>setModal(null)}  loadAll={loadAll}/>}
+      {detail && <Detail detail={detail} t={t} data={data} close={()=>setDetail(null)} setModal={setModal} loadAll={loadAll}/>}
+    </div>
+  );
+}
+
+/* ─── Icon Bar Button ─────────────────────────────────────────────── */
+function IbBtn({ p, active, nav, t, badge=0, extra="" }) {
+  return (
+    <button
+      className={`ib-btn ${active?"on":""} ${extra}`.trim()}
+      onClick={()=>nav(p.id)}
+      title={t[p.key]}
+      aria-label={t[p.key]}
+      aria-current={active?"page":undefined}
+    >
+      <span className="ib-icon">{p.icon}</span>
+      {badge>0 && <span className="ib-dot" aria-label={`${badge} o'qilmagan`}/>}
+    </button>
+  );
+}
+
+/* ─── Sidebar Navigation ──────────────────────────────────────────── */
+function SideNav({ page, sub, setSub, t, data, stats, setModal }) {
+  const items = useMemo(()=>({
+    dash:     [[t.list,"home",null],[t.analytics,"analytics",null],[t.notifications,"notifications",stats.unread||null]],
+    students: [[t.list,"home",data.students.filter(s=>(s.status||"active")==="active").length],[t.addStudent,"add",null,()=>setModal({type:"student"})],[t.frozen,"frozen",data.students.filter(s=>s.status==="frozen").length||null],[t.archived,"archive",data.students.filter(s=>s.status==="archived").length||null]],
+    groups:   [[t.all,"home",data.study_groups.length],[t.addGroup,"add",null,()=>setModal({type:"group"})],["Sinov darsi","trial",null],["Tugatilganlar","closed",null]],
+    teachers: [[t.list,"home",data.teachers.length],["Yangi o'qituvchi","add",null,()=>setModal({type:"teacher"})],["Maosh sozlamalari","salary",null]],
+    finance:  [[t.payments,"home",data.payments.length],[t.salaries,"salary",null],[t.expenses,"expenses",data.expenses.length],[t.debtors,"debtors",stats.debtors||null],["Zararsizlik","break",null]],
+    attend:   [["Davomat belgilash","home",null],["Tarix","history",null],["Sabablar","reasons",null]],
+    sched:    [[t.weekly,"home",null],["Oylik","month",null],["Xonalar","rooms",null]],
+    leads:    [[t.kanban,"home",data.leads.filter(l=>l.stage==="new").length||null],["Ro'yxat","list",null],["Manbalar tahlili","source",null]],
+    reports:  [[t.financial,"home",null],[t.studentGrowth,"growth",null],[t.attendanceReport,"attendance",null],["O'qituvchilar","teachers",null],[t.sourceReport,"source",null]],
+    settings: [[t.centerInfo,"home",null],[t.roles,"roles",null],["SMS / Telegram","sms",null],["Filiallar","branches",null],[t.integrations,"integrations",null]],
+  }),[t,data,stats,setModal]);
+
+  const pageKey = PAGES.find(x=>x.id===page)?.key;
+  const list = items[page] || [];
+
+  return (
+    <nav className="sb-nav" aria-label="Bo'lim navigatsiyasi">
+      <div className="sb-section-label">{t[pageKey]}</div>
+      {list.map(([label,id,badge,action])=>(
+        <button key={id} className={`nm ${sub===id?"on":""}`}
+          onClick={()=>action?action():setSub(id)}
+          aria-current={sub===id?"true":undefined}>
+          <span className="nm-ico">{id==="add"?"＋":"•"}</span>
+          <span className="nm-label">{label}</span>
+          {badge!=null && badge>0 && <span className={`nm-badge ${badge<=20?"b":""}`}>{badge}</span>}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════════════════════════════════════ */
+function Dashboard({ t, data, stats, sub, setModal, nav, markAllRead }) {
+  if(sub==="analytics")     return <DashAnalytics     t={t} data={data} stats={stats} nav={nav}/>;
+  if(sub==="notifications") return <DashNotifications t={t} data={data} stats={stats} markAllRead={markAllRead}/>;
+
+  const recentAtt = attRate(data.attendance);
+
+  return (
+    <div className="page-enter">
+      {/* ── KPI Strip ── */}
+      <div className="summary-strip">
+        <StatCard label={t.students} value={stats.active}        icon="👥" tone="blue"
+          onClick={()=>nav("students")} trend="+2 bu oy"/>
+        <StatCard label={t.income}   value={short(stats.income)} icon="💰" tone="green"
+          onClick={()=>nav("finance")} trend="so'm"/>
+        <StatCard label={t.debtors}  value={stats.debtors}       icon="⚠"  tone="red"
+          sub={money(stats.debt)} trend="jami qarz"/>
+        <StatCard label={t.newLeads} value={data.leads.length}   icon="📣" tone="purple"
+          onClick={()=>nav("leads")}
+          trend={`${data.leads.filter(l=>l.stage==="new").length} yangi`}/>
+      </div>
+
+      {/* ── Two column grid ── */}
+      <div className="grid2">
+        {/* Left column */}
+        <section>
+          <SectionHeader title={t.recentPayments} action={t.all} onAction={()=>nav("finance")}/>
+          <Card>
+            {data.payments.slice(0,6).map(p=>(
+              <FinanceLine key={p.id} name={p.student_name} sub={p.group_name}
+                amount={p.amount} date={fmtDate(p.created_at)}/>
+            ))}
+            {!data.payments.length && (
+              <Empty text="To'lovlar mavjud emas" action="+ To'lov" onAction={()=>setModal({type:"payment"})}/>
+            )}
+          </Card>
+
+          <SectionHeader title={t.groupStatus} action={t.all} onAction={()=>nav("groups")} style={{marginTop:16}}/>
+          <Card>
+            {data.study_groups.slice(0,5).map(g=>(
+              <GroupLine key={g.id} g={g} count={data.students.filter(s=>s.group_name===g.name).length}/>
+            ))}
+            {!data.study_groups.length && (
+              <Empty text="Guruhlar mavjud emas" action="+ Guruh" onAction={()=>setModal({type:"group"})}/>
+            )}
+          </Card>
+        </section>
+
+        {/* Right column */}
+        <section>
+          <SectionHeader title={t.systemMessages} action={t.markAllRead} onAction={markAllRead}/>
+          <Card>
+            {data.notifications.slice(0,6).map(n=><Notice key={n.id} n={n}/>)}
+            {!data.notifications.length && <Empty text="Bildirishnomalar yo'q"/>}
+          </Card>
+
+          <div className="grid2 mini-grid" style={{marginTop:14}}>
+            <Mini title={t.attendance} value={`${recentAtt}%`}          tone="green" sub="O'rtacha davomat"/>
+            <Mini title={t.profit}     value={short(stats.profit)}       tone={stats.profit>=0?"blue":"red"} sub="Sof foyda"/>
+            <Mini title={t.groups}     value={stats.groups}              tone="purple" sub="Faol guruhlar"/>
+            <Mini title={t.teachers}   value={stats.teachers}            tone="blue"  sub="O'qituvchilar"/>
+          </div>
+
+          <div className="quick-actions">
+            <div className="qa-title">Tezkor amallar</div>
+            <div className="qa-grid">
+              <button className="qa-btn" onClick={()=>setModal({type:"payment"})}>
+                <span>💳</span>To'lov qabul
+              </button>
+              <button className="qa-btn" onClick={()=>setModal({type:"student"})}>
+                <span>👤</span>Talaba qo'sh
+              </button>
+              <button className="qa-btn" onClick={()=>setModal({type:"lead"})}>
+                <span>📣</span>Lid qo'sh
+              </button>
+              <button className="qa-btn" onClick={()=>setModal({type:"expense"})}>
+                <span>💸</span>Xarajat
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ── Dashboard › Analytics ─────────────────────────────────────────── */
+function DashAnalytics({ t, data, stats, nav }) {
+  const byMonth = useMemo(()=>{
+    const map={};
+    data.payments.forEach(r=>{if(!r.created_at)return;const m=r.created_at.slice(0,7);if(!map[m])map[m]={income:0,expense:0};map[m].income+=Number(r.amount||0);});
+    data.expenses.forEach(r=>{if(!r.created_at)return;const m=r.created_at.slice(0,7);if(!map[m])map[m]={income:0,expense:0};map[m].expense+=Number(r.amount||0);});
+    return Object.entries(map).sort().slice(-6);
+  },[data]);
+  const maxVal = byMonth.length ? Math.max(...byMonth.map(([,v])=>Math.max(v.income,v.expense)),1) : 1;
+
+  const byStage = STAGES.map(s=>({ ...s, count:data.leads.filter(l=>l.stage===s.id).length }));
+  const totalLeads = data.leads.length || 1;
+
+  return (
+    <div className="page-enter">
+      <div className="summary-strip">
+        <StatCard label="Jami talabalar"   value={data.students.length}  icon="👥" tone="blue"/>
+        <StatCard label={t.income}         value={short(stats.income)}   icon="💰" tone="green"/>
+        <StatCard label={t.profit}         value={short(stats.profit)}   icon="📈" tone={stats.profit>=0?"blue":"red"}/>
+        <StatCard label="Davomat o'rtacha" value={`${attRate(data.attendance)}%`} icon="✓" tone="purple"/>
+      </div>
+
+      <div className="grid2">
+        <Card className="pad">
+          <SectionHeader title="Oylik moliyaviy tahlil"/>
+          {byMonth.length ? byMonth.map(([m,v])=>(
+            <div key={m} style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:11}}>
+                <span style={{fontWeight:700}}>{m}</span>
+                <span>
+                  <span className="green">+{short(v.income)}</span>
+                  {" / "}
+                  <span className="red">-{short(v.expense)}</span>
+                </span>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                <ProgressBar value={Math.round(v.income/maxVal*100)} color="green"/>
+                <ProgressBar value={Math.round(v.expense/maxVal*100)} color="red"/>
+              </div>
+            </div>
+          )) : <Empty text="Moliyaviy ma'lumotlar yo'q"/>}
+        </Card>
+
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <Card className="pad">
+            <SectionHeader title="Lidlar bosqichlari"/>
+            {byStage.map(s=>(
+              <div key={s.id} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+                  <Pill type={s.color}>{s.label}</Pill>
+                  <span style={{fontWeight:700}}>{s.count} ({Math.round(s.count/totalLeads*100)}%)</span>
+                </div>
+                <ProgressBar value={Math.round(s.count/totalLeads*100)}/>
+              </div>
+            ))}
+          </Card>
+
+          <Card className="pad">
+            <SectionHeader title="Talabalar holati"/>
+            <Line l="Faol talabalar"   r={data.students.filter(s=>(s.status||"active")==="active").length}/>
+            <Line l="Muzlatilgan"      r={data.students.filter(s=>s.status==="frozen").length}/>
+            <Line l="Arxivlangan"      r={data.students.filter(s=>s.status==="archived").length}/>
+            <Line l="Qarzdorlar soni"  r={<span className="red">{stats.debtors}</span>}/>
+            <Line l="Jami qarz"        r={<span className="red">{money(stats.debt)}</span>}/>
+          </Card>
+        </div>
+      </div>
+
+      <div className="grid2" style={{marginTop:14}}>
+        <Card className="pad">
+          <SectionHeader title="Guruhlar bandligi"/>
+          {data.study_groups.slice(0,6).map(g=>{
+            const count=data.students.filter(s=>s.group_name===g.name).length;
+            const cap=Number(g.capacity||15);
+            const pct=Math.min(100,Math.round(count/cap*100));
+            return(
+              <div key={g.id} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+                  <span style={{fontWeight:700}}>{g.name}</span>
+                  <span className={pct>=80?"red":"green"}>{count}/{cap} ({pct}%)</span>
+                </div>
+                <ProgressBar value={pct}/>
+              </div>
+            );
+          })}
+          {!data.study_groups.length && <Empty text="Guruhlar yo'q"/>}
+        </Card>
+
+        <Card className="pad">
+          <SectionHeader title="O'qituvchilar ish yuklama"/>
+          {data.teachers.slice(0,6).map(tc=>{
+            const gcnt=data.study_groups.filter(g=>g.teacher_name===tc.full_name).length;
+            const scnt=data.students.filter(s=>data.study_groups.filter(g=>g.teacher_name===tc.full_name).some(g=>g.name===s.group_name)).length;
+            return(
+              <div key={tc.id} className="line">
+                <div><b>{tc.full_name}</b><small style={{display:"block",color:"var(--muted)"}}>{tc.subject||"—"}</small></div>
+                <div style={{textAlign:"right"}}>
+                  <span className="badge-count">{gcnt} guruh</span>
+                  <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>{scnt} talaba</div>
+                </div>
+              </div>
+            );
+          })}
+          {!data.teachers.length && <Empty text="O'qituvchilar yo'q"/>}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ── Dashboard › Notifications ─────────────────────────────────────── */
+function DashNotifications({ t, data, markAllRead }) {
+  const [filter, setFilter] = useState("all");
+  const items = useMemo(()=>{
+    if(filter==="unread") return data.notifications.filter(n=>!n.is_read);
+    if(filter==="read")   return data.notifications.filter(n=>n.is_read);
+    return data.notifications;
+  },[data.notifications, filter]);
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <div className="filter-tabs">
+          {[["all","Barchasi"],["unread","O'qilmagan"],["read","O'qilgan"]].map(([v,l])=>(
+            <button key={v} className={`filter-tab ${filter===v?"on":""}`} onClick={()=>setFilter(v)}>
+              {l}
+              {v==="unread" && data.notifications.filter(n=>!n.is_read).length>0 && (
+                <span className="filter-count">{data.notifications.filter(n=>!n.is_read).length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {data.notifications.some(n=>!n.is_read) && (
+          <button className="btn btn-ghost btn-sm" onClick={markAllRead}>{t.markAllRead}</button>
+        )}
+      </div>
+
+      <Card>
+        {items.map(n=>(
+          <div key={n.id} className={`notif ${!n.is_read?"notif-unread":""}`}>
+            <div className={`nd ${n.type==="warning"?"warning":n.type==="payment"?"payment":n.type==="error"?"danger":""}`}/>
+            <div style={{flex:1}}>
+              <div className="nt">{n.title}</div>
+              <div className="ns">{n.body || fmtDate(n.created_at)}</div>
+            </div>
+            <div style={{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap",marginLeft:8}}>
+              {fmtDate(n.created_at)}
+            </div>
+            {!n.is_read && <span style={{width:8,height:8,borderRadius:"50%",background:"var(--brand)",flexShrink:0,marginLeft:8}}/>}
+          </div>
+        ))}
+        {!items.length && <Empty text="Bildirishnomalar yo'q" icon="🔔"/>}
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   STUDENTS
+══════════════════════════════════════════════════════════════════════ */
+function Students({ t, rows, data, setModal, setDetail, loadAll }) {
+  const toast   = useToast();
+  const confirm = useConfirm();
+  const [filter,  setFilter]  = useState("active");
+  const [pageNum, setPageNum] = useState(1);
+
+  const filtered = useMemo(()=>
+    filter==="all" ? rows : rows.filter(s=>(s.status||"active")===filter),
+    [rows, filter]
+  );
+  const paged   = filtered.slice(0, pageNum * PER_PAGE);
+  const hasMore = filtered.length > paged.length;
+
+  const remove = async id => {
+    if(!await confirm(t.confirmDelete)) return;
+    const { error } = await db.from("students").delete().eq("id",id);
+    if(error) return toast(error.message,"error");
+    toast("Talaba o'chirildi"); loadAll();
+  };
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <div className="filter-tabs">
+          {[["active",t.active],["frozen",t.frozen],["archived",t.archived],["all",t.all]].map(([v,l])=>(
+            <button key={v} className={`filter-tab ${filter===v?"on":""}`}
+              onClick={()=>{setFilter(v);setPageNum(1);}}>
+              {l}
+              <span className="filter-count">
+                {v==="all" ? rows.length : rows.filter(s=>(s.status||"active")===v).length}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="toolbar-right">
+          <button className="btn btn-ghost btn-sm" onClick={()=>exportCSV(filtered,"talabalar")}>
+            ⇩ {t.export}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"student"})}>
+            + {t.addStudent}
+          </button>
+        </div>
+      </div>
+
+      <Card>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>#</th><th>{t.name}</th><th>{t.group}</th>
+              <th>{t.balance}</th><th>{t.attendance}</th>
+              <th>{t.status}</th><th>{t.actions}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((s,i)=>{
+              const att = sAttRate(s.full_name, data.attendance);
+              return (
+                <tr key={s.id} className="tbl-row">
+                  <td className="muted">{i+1}</td>
+                  <td><Person name={s.full_name} sub={s.phone}/></td>
+                  <td>{s.group_name?<Pill>{s.group_name}</Pill>:<span className="muted">—</span>}</td>
+                  <td className={`money ${Number(s.balance||0)<0?"red":"green"}`}>{money(s.balance)}</td>
+                  <td style={{width:110}}>
+                    <ProgressBar value={att}/>
+                    <div className="att-pct">{att}%</div>
+                  </td>
+                  <td><StatusPill status={s.status||"active"} t={t}/></td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="btn btn-ghost btn-xs"
+                        onClick={()=>setDetail({type:"student",row:s})}>Ko'rish</button>
+                      <button className="btn btn-ghost btn-xs"
+                        onClick={()=>setModal({type:"student",row:s})}>✎</button>
+                      <button className="btn btn-ghost btn-xs danger"
+                        onClick={()=>remove(s.id)}>✕</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {!filtered.length && (
+              <tr><td colSpan={7}>
+                <Empty text="Talabalar topilmadi" icon="👥"
+                  action="+ Yangi talaba" onAction={()=>setModal({type:"student"})}/>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+        {hasMore && (
+          <div style={{padding:12,textAlign:"center"}}>
+            <button className="btn btn-ghost btn-sm" onClick={()=>setPageNum(p=>p+1)}>
+              Ko'proq ko'rsatish ({filtered.length-paged.length} qoldi)
+            </button>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   GROUPS
+══════════════════════════════════════════════════════════════════════ */
+function Groups({ t, rows, data, setModal, nav, loadAll }) {
+  const toast   = useToast();
+  const confirm = useConfirm();
+  const [view, setView] = useState("grid");
+
+  const remove = async id => {
+    if(!await confirm(t.confirmDelete)) return;
+    const { error } = await db.from("study_groups").delete().eq("id",id);
+    if(error) return toast(error.message,"error");
+    toast("Guruh o'chirildi"); loadAll();
+  };
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <div className="filter-tabs">
+          <button className={`filter-tab ${view==="grid"?"on":""}`} onClick={()=>setView("grid")}>▤ Grid</button>
+          <button className={`filter-tab ${view==="list"?"on":""}`} onClick={()=>setView("list")}>≡ Ro'yxat</button>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"group"})}>+ {t.addGroup}</button>
+      </div>
+
+      {view==="grid" ? (
+        <div className="grid3">
+          {rows.map(g=>{
+            const count=data.students.filter(s=>s.group_name===g.name).length;
+            const cap=Number(g.capacity||15);
+            const pct=Math.min(100,Math.round(count/cap*100));
+            return (
+              <div className="group-card" key={g.id}>
+                <div className="group-card-top">
+                  <div>
+                    <div className="group-title">{g.name}</div>
+                    <div className="group-sub">{g.teacher_name||"—"} · {g.subject||"—"}</div>
+                  </div>
+                  <Pill type={pct>=100?"orange":pct>=80?"blue":"green"}>
+                    {pct>=100?"To'lgan":t.active}
+                  </Pill>
+                </div>
+                <div className="group-info">🕒 {g.schedule_text||"—"} &nbsp;·&nbsp; {money(g.price)}</div>
+                <div className="group-meta">
+                  <span>{count}/{cap} talaba</span>
+                  <span className={pct>=80?"red":"green"}>{pct}%</span>
+                </div>
+                <ProgressBar value={pct}/>
+                <div className="card-actions">
+                  <button className="btn btn-primary btn-sm" onClick={()=>nav("attend")}>{t.attendance}</button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>setModal({type:"group",row:g})}>✎</button>
+                  <button className="btn btn-ghost btn-sm danger" onClick={()=>remove(g.id)}>✕</button>
+                </div>
+              </div>
+            );
+          })}
+          <div className="group-card add-card" onClick={()=>setModal({type:"group"})} role="button" tabIndex={0}>
+            <span className="add-card-icon">＋</span>
+            <span>{t.addGroup}</span>
+          </div>
+        </div>
+      ) : (
+        <Card>
+          <table className="tbl">
+            <thead><tr><th>{t.group}</th><th>{t.teacher}</th><th>{t.subject}</th><th>Narx</th><th>Bandlik</th><th>{t.actions}</th></tr></thead>
+            <tbody>
+              {rows.map(g=>{
+                const count=data.students.filter(s=>s.group_name===g.name).length;
+                const cap=Number(g.capacity||15);
+                return (
+                  <tr key={g.id} className="tbl-row">
+                    <td>
+                      <b>{g.name}</b>
+                      <br/><span className="muted" style={{fontSize:10}}>{g.schedule_text}</span>
+                    </td>
+                    <td>{g.teacher_name||"—"}</td>
+                    <td>{g.subject?<Pill>{g.subject}</Pill>:"—"}</td>
+                    <td className="money">{money(g.price)}</td>
+                    <td style={{width:140}}>
+                      <ProgressBar value={Math.min(100,Math.round(count/cap*100))}/>
+                      <span style={{fontSize:10,color:"var(--muted)"}}>{count}/{cap}</span>
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="btn btn-ghost btn-xs" onClick={()=>setModal({type:"group",row:g})}>✎</button>
+                        <button className="btn btn-ghost btn-xs danger" onClick={()=>remove(g.id)}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!rows.length && <tr><td colSpan={6}><Empty text="Guruhlar yo'q" icon="🎓"/></td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TEACHERS
+══════════════════════════════════════════════════════════════════════ */
+function Teachers({ t, rows, data, setModal, loadAll }) {
+  const toast   = useToast();
+  const confirm = useConfirm();
+
+  const remove = async id => {
+    if(!await confirm(t.confirmDelete)) return;
+    const { error } = await db.from("teachers").delete().eq("id",id);
+    if(error) return toast(error.message,"error");
+    toast("O'qituvchi o'chirildi"); loadAll();
+  };
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <div/>
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"teacher"})}>
+          + Yangi o'qituvchi
+        </button>
+      </div>
+      <Card>
+        <table className="tbl">
+          <thead>
+            <tr><th>{t.teacher}</th><th>{t.phone}</th><th>{t.subject}</th><th>Maosh turi</th><th>Maosh</th><th>Guruhlar</th><th>{t.status}</th><th>{t.actions}</th></tr>
+          </thead>
+          <tbody>
+            {rows.map(r=>{
+              const groupCount=data.study_groups.filter(g=>g.teacher_name===r.full_name).length;
+              return (
+                <tr key={r.id} className="tbl-row">
+                  <td><Person name={r.full_name} sub={r.subject}/></td>
+                  <td>{r.phone||"—"}</td>
+                  <td>{r.subject?<Pill>{r.subject}</Pill>:"—"}</td>
+                  <td className="muted">{r.salary_type||"—"}</td>
+                  <td className="money green">{money(r.salary_value)}</td>
+                  <td><span className="badge-count">{groupCount}</span></td>
+                  <td><StatusPill status={r.status||"active"} t={t}/></td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="btn btn-ghost btn-xs" onClick={()=>setModal({type:"teacher",row:r})}>✎</button>
+                      <button className="btn btn-ghost btn-xs danger" onClick={()=>remove(r.id)}>✕</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {!rows.length && <tr><td colSpan={8}><Empty text="O'qituvchilar yo'q" icon="🧑‍🏫"/></td></tr>}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FINANCE
+══════════════════════════════════════════════════════════════════════ */
+function Finance({ t, data, stats, sub, setSub, setModal, loadAll }) {
+  const toast   = useToast();
+  const confirm = useConfirm();
+  const debtors = data.students.filter(s=>Number(s.balance||0)<0);
+
+  const remove = async (table, id) => {
+    if(!await confirm(t.confirmDelete)) return;
+    const { error } = await db.from(table).delete().eq("id",id);
+    if(error) return toast(error.message,"error");
+    toast("O'chirildi"); loadAll();
+  };
+
+  return (
+    <div className="page-enter">
+      {/* Hero cards */}
+      <div className="finance-hero">
+        <FinanceHeroCard title={t.income}  value={money(stats.income)}  tone="green"
+          icon="💰" sub={`${data.payments.length} ta to'lov`}/>
+        <FinanceHeroCard title={t.expense} value={money(stats.expense)} tone="red"
+          icon="💸" sub={`${data.expenses.length} ta xarajat`}/>
+        <FinanceHeroCard title={t.profit}  value={money(stats.profit)}
+          tone={stats.profit>=0?"blue":"red"} icon="📊" sub="Sof daromad"/>
+      </div>
+
+      {/* Sub-tab toolbar */}
+      <div className="page-toolbar" style={{marginBottom:14}}>
+        <div className="filter-tabs">
+          {[["home",t.payments],["expenses",t.expenses],["salary",t.salaries],["debtors",t.debtors],["break","Zararsizlik"]].map(([id,label])=>(
+            <button key={id} className={`filter-tab ${sub===id?"on":""}`} onClick={()=>setSub(id)}>
+              {label}
+              {id==="debtors" && stats.debtors>0 && (
+                <span className="nm-badge" style={{marginLeft:6}}>{stats.debtors}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="toolbar-right">
+          {(sub==="home"||sub==="expenses") && (
+            <>
+              <button className="btn btn-ghost btn-sm"
+                onClick={()=>exportCSV(sub==="expenses"?data.expenses:data.payments, sub==="expenses"?"xarajatlar":"tolovlar")}>
+                ⇩ {t.export}
+              </button>
+              <button className="btn btn-primary btn-sm"
+                onClick={()=>setModal({type:sub==="expenses"?"expense":"payment"})}>
+                + {sub==="expenses"?t.addExpense:t.addPayment}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {sub==="home" && (
+        <Card>
+          <table className="tbl">
+            <thead><tr><th>{t.date}</th><th>{t.students}</th><th>{t.group}</th><th>{t.amount}</th><th>{t.method}</th><th>{t.status}</th><th>{t.actions}</th></tr></thead>
+            <tbody>
+              {data.payments.map(r=>(
+                <tr key={r.id} className="tbl-row">
+                  <td className="muted">{fmtFull(r.created_at)}</td>
+                  <td><b>{r.student_name||"—"}</b></td>
+                  <td>{r.group_name?<Pill>{r.group_name}</Pill>:"—"}</td>
+                  <td className="money green">+{money(r.amount)}</td>
+                  <td><MethodBadge method={r.method}/></td>
+                  <td><Pill type="green">Tasdiqlandi</Pill></td>
+                  <td><button className="btn btn-ghost btn-xs danger" onClick={()=>remove("payments",r.id)}>✕</button></td>
+                </tr>
+              ))}
+              {!data.payments.length && (
+                <tr><td colSpan={7}><Empty text="To'lovlar yo'q" action="+ To'lov" onAction={()=>setModal({type:"payment"})}/></td></tr>
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {sub==="expenses" && (
+        <Card>
+          <table className="tbl">
+            <thead><tr><th>{t.date}</th><th>Kategoriya</th><th>{t.amount}</th><th>{t.method}</th><th>Izoh</th><th>{t.actions}</th></tr></thead>
+            <tbody>
+              {data.expenses.map(r=>(
+                <tr key={r.id} className="tbl-row">
+                  <td className="muted">{fmtFull(r.created_at)}</td>
+                  <td><CategoryBadge cat={r.category}/></td>
+                  <td className="money red">-{money(r.amount)}</td>
+                  <td><MethodBadge method={r.method}/></td>
+                  <td className="muted">{r.note||"—"}</td>
+                  <td><button className="btn btn-ghost btn-xs danger" onClick={()=>remove("expenses",r.id)}>✕</button></td>
+                </tr>
+              ))}
+              {!data.expenses.length && (
+                <tr><td colSpan={6}><Empty text="Xarajatlar yo'q" action="+ Xarajat" onAction={()=>setModal({type:"expense"})}/></td></tr>
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {sub==="debtors" && (
+        <Card>
+          <table className="tbl">
+            <thead><tr><th>{t.name}</th><th>{t.phone}</th><th>{t.group}</th><th>Qarz miqdori</th><th>{t.actions}</th></tr></thead>
+            <tbody>
+              {debtors.map(s=>(
+                <tr key={s.id} className="tbl-row">
+                  <td><Person name={s.full_name} sub={s.phone}/></td>
+                  <td>{s.phone||"—"}</td>
+                  <td>{s.group_name?<Pill>{s.group_name}</Pill>:"—"}</td>
+                  <td className="money red">{money(Math.abs(Number(s.balance||0)))}</td>
+                  <td>
+                    <button className="btn btn-primary btn-sm"
+                      onClick={()=>setModal({type:"payment",row:{student_name:s.full_name,group_name:s.group_name}})}>
+                      + To'lov
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!debtors.length && <tr><td colSpan={5}><Empty text="Qarzdorlar yo'q 🎉" icon="✓"/></td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {sub==="salary" && (
+        <Card>
+          <table className="tbl">
+            <thead><tr><th>{t.teacher}</th><th>{t.subject}</th><th>Maosh turi</th><th>Maosh</th><th>{t.status}</th></tr></thead>
+            <tbody>
+              {data.teachers.map(r=>(
+                <tr key={r.id} className="tbl-row">
+                  <td><Person name={r.full_name} sub={r.phone}/></td>
+                  <td>{r.subject?<Pill>{r.subject}</Pill>:"—"}</td>
+                  <td>{r.salary_type||"—"}</td>
+                  <td className="money green">{money(r.salary_value)}</td>
+                  <td><StatusPill status={r.status||"active"} t={t}/></td>
+                </tr>
+              ))}
+              {!data.teachers.length && <tr><td colSpan={5}><Empty text="O'qituvchilar yo'q"/></td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {sub==="break" && (
+        <div className="grid2">
+          <Card className="pad">
+            <div className="sc-t" style={{marginBottom:14}}>Zararsizlik nuqtasi</div>
+            <Line l="Jami xarajatlar"  r={money(stats.expense)}/>
+            <Line l="Jami daromad"     r={money(stats.income)}/>
+            <Line l="Sof foyda"        r={<span className={stats.profit>=0?"green":"red"}>{money(stats.profit)}</span>}/>
+            <Line l="Qarzdorlar jami"  r={<span className="red">{money(stats.debt)}</span>}/>
+          </Card>
+          <Card className="pad">
+            <div className="sc-t" style={{marginBottom:14}}>Tarkib</div>
+            <Line l="Faol talabalar"  r={data.students.filter(s=>(s.status||"active")==="active").length}/>
+            <Line l="Guruhlar soni"   r={data.study_groups.length}/>
+            <Line l="O'qituvchilar"   r={data.teachers.length}/>
+            <Line l="Oylik maoshlar"  r={money(data.teachers.reduce((a,tc)=>a+Number(tc.salary_value||0),0))}/>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ATTENDANCE
+══════════════════════════════════════════════════════════════════════ */
+function Attendance({ t, data, setModal }) {
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const groups   = useMemo(()=>[...new Set(data.students.map(s=>s.group_name).filter(Boolean))],[data.students]);
+  const students = useMemo(()=>
+    (selectedGroup?data.students.filter(s=>s.group_name===selectedGroup):data.students).slice(0,14),
+    [data.students, selectedGroup]
+  );
+  const dates = useMemo(()=>{
+    const all=[...new Set(data.attendance.map(a=>a.lesson_date).filter(Boolean))].sort().slice(-7);
+    if(all.length) return all;
+    return Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d.toISOString().slice(0,10);});
+  },[data.attendance]);
+
+  const getStatus = (name,date) =>
+    data.attendance.find(a=>a.student_name===name&&a.lesson_date===date)?.status||null;
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <select className="select-control" value={selectedGroup} onChange={e=>setSelectedGroup(e.target.value)}>
+          <option value="">Barcha guruhlar</option>
+          {groups.map(g=><option key={g} value={g}>{g}</option>)}
+        </select>
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"attendance"})}>
+          + Davomat belgilash
+        </button>
+      </div>
+      <Card className="pad">
+        <div style={{overflowX:"auto"}}>
+          <div className="att-grid" style={{gridTemplateColumns:`160px repeat(${dates.length},1fr) 56px`}}>
+            <div className="att-hdr left">{t.name}</div>
+            {dates.map(d=>(
+              <div key={d} className="att-hdr">
+                {new Date(d+"T00:00").getDate()}
+                <br/>
+                <span style={{fontSize:8,opacity:.6}}>
+                  {["Ya","Du","Se","Ch","Pa","Sh","Ya"][new Date(d+"T00:00").getDay()]}
+                </span>
+              </div>
+            ))}
+            <div className="att-hdr">%</div>
+            {students.flatMap(s=>{
+              const statuses=dates.map(d=>getStatus(s.full_name,d));
+              const known=statuses.filter(x=>x!==null);
+              const rate=known.length?Math.round(known.filter(x=>x==="present").length/known.length*100):null;
+              return [
+                <div key={s.id+"n"} className="att-nm" title={s.full_name}>{s.full_name}</div>,
+                ...dates.map((d,i)=>{
+                  const st=statuses[i];
+                  return (
+                    <div key={d}
+                      className={`att-dot ${st==="present"?"ad-g":st==="absent"?"ad-r":st==="late"?"ad-y":""}`}
+                      style={{opacity:st?1:.2,cursor:"pointer"}}
+                      title={`${s.full_name} — ${d}: ${st||"belgilanmagan"}`}
+                      onClick={()=>setModal({type:"attendance",row:{student_name:s.full_name,lesson_date:d,group_name:s.group_name}})}>
+                      {st==="present"?"✓":st==="absent"?"✗":st==="late"?"!":"·"}
+                    </div>
+                  );
+                }),
+                <div key={s.id+"p"} className={`${rate!==null?(rate>75?"green":"red"):"muted"} att-pct-cell`}>
+                  {rate!==null?`${rate}%`:"—"}
+                </div>
+              ];
+            })}
+          </div>
+        </div>
+        <div className="att-legend">
+          <span className="att-dot ad-g" style={{width:24,height:18,fontSize:9}}>✓</span> Keldi
+          <span className="att-dot ad-r" style={{width:24,height:18,fontSize:9,marginLeft:12}}>✗</span> Kelmadi
+          <span className="att-dot ad-y" style={{width:24,height:18,fontSize:9,marginLeft:12}}>!</span> Kechikdi
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCHEDULE
+══════════════════════════════════════════════════════════════════════ */
+function Schedule({ t, data, setModal }) {
+  const days  = ["Dushanba","Seshanba","Chorshanba","Payshanba","Juma"];
+  const times = ["08:00","09:00","10:00","11:00","14:00","15:00","16:00","17:00","18:00","19:00"];
+  const COLORS = ["sc-bl","sc-gr","sc-pu","sc-am","sc-cy"];
+  const allGroups = useMemo(()=>[...new Set(data.schedules.map(s=>s.group_name).filter(Boolean))],[data.schedules]);
+  const colorMap  = useMemo(()=>Object.fromEntries(allGroups.map((g,i)=>[g,COLORS[i%COLORS.length]])),[allGroups]);
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <b style={{fontWeight:900,fontSize:14}}>Haftalik jadval</b>
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"schedule"})}>+ Dars qo'shish</button>
+      </div>
+      <Card className="pad">
+        <div style={{overflowX:"auto"}}>
+          <div className="sch-grid" style={{gridTemplateColumns:"54px repeat(5,1fr)"}}>
+            <div/>
+            {days.map(d=><div key={d} className="sch-th">{d}</div>)}
+            {times.flatMap(tm=>[
+              <div key={tm} className="sch-tm">{tm}</div>,
+              ...days.map(day=>{
+                const cells=data.schedules.filter(s=>s.day_name===day&&s.start_time===tm);
+                return (
+                  <div key={day}
+                    className={`sch-c ${cells.length?colorMap[cells[0]?.group_name]||"sc-bl":"sc-mt"}`}
+                    title={cells.map(c=>c.group_name).join(", ")}>
+                    {cells.map((c,i)=>(
+                      <div key={i}>
+                        <b style={{fontSize:10}}>{c.group_name}</b>
+                        <div style={{opacity:.7,fontSize:9}}>
+                          {c.room&&`Xona ${c.room}`}{c.teacher_name&&` · ${c.teacher_name.split(" ")[0]}`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+            ])}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LEADS
+══════════════════════════════════════════════════════════════════════ */
+function Leads({ t, rows, setModal, loadAll }) {
+  const toast   = useToast();
+  const confirm = useConfirm();
+  const [view, setView] = useState("kanban");
+
+  const move = async (id, stage) => {
+    const { error } = await db.from("leads").update({stage}).eq("id",id);
+    if(error) return toast(error.message,"error");
+    toast(`→ ${STAGES.find(s=>s.id===stage)?.label}`);
+    loadAll();
+  };
+
+  const remove = async id => {
+    if(!await confirm(t.confirmDelete)) return;
+    const { error } = await db.from("leads").delete().eq("id",id);
+    if(error) return toast(error.message,"error");
+    toast("Lid o'chirildi"); loadAll();
+  };
+
+  return (
+    <div className="page-enter">
+      <div className="page-toolbar">
+        <div className="filter-tabs">
+          <button className={`filter-tab ${view==="kanban"?"on":""}`} onClick={()=>setView("kanban")}>⬚ Kanban</button>
+          <button className={`filter-tab ${view==="list"?"on":""}`}   onClick={()=>setView("list")}>≡ Ro'yxat</button>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"lead"})}>+ Yangi lid</button>
+      </div>
+
+      {view==="kanban" ? (
+        <div className="kanban">
+          {STAGES.map(({id:st,label,color})=>(
+            <div className="kb-col" key={st}>
+              <div className={`kb-hd kb-hd-${color}`}>
+                <span>{label}</span>
+                <span className={`pill pill-${color}`}>{rows.filter(x=>x.stage===st).length}</span>
+              </div>
+              <div className="kb-body">
+                {rows.filter(x=>x.stage===st).map(l=>(
+                  <div className="kb-card" key={l.id}>
+                    <div className="kb-name">{l.full_name}</div>
+                    <div className="kb-meta">
+                      <span>📞 {l.phone||"—"}</span>
+                      {l.source&&<span>· {l.source}</span>}
+                    </div>
+                    {l.interested_course&&(
+                      <div className="kb-course">📚 {l.interested_course}</div>
+                    )}
+                    <div className="kb-move">
+                      {STAGES.filter(s=>s.id!==st).map(s=>(
+                        <button key={s.id} className="kb-move-btn" onClick={()=>move(l.id,s.id)}>
+                          → {s.label.slice(0,8)}
+                        </button>
+                      ))}
+                    </div>
+                    <button className="tiny-x" onClick={()=>remove(l.id)} title="O'chirish">✕</button>
+                  </div>
+                ))}
+                {!rows.filter(x=>x.stage===st).length&&<div className="kb-empty">Bo'sh</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <table className="tbl">
+            <thead><tr><th>{t.name}</th><th>{t.phone}</th><th>Manba</th><th>Kurs</th><th>Bosqich</th><th>{t.date}</th><th>{t.actions}</th></tr></thead>
+            <tbody>
+              {rows.map(l=>(
+                <tr key={l.id} className="tbl-row">
+                  <td><b>{l.full_name}</b></td>
+                  <td>{l.phone||"—"}</td>
+                  <td>{l.source||"—"}</td>
+                  <td>{l.interested_course||"—"}</td>
+                  <td>
+                    <Pill type={STAGES.find(s=>s.id===l.stage)?.color||"blue"}>
+                      {STAGES.find(s=>s.id===l.stage)?.label||l.stage}
+                    </Pill>
+                  </td>
+                  <td className="muted">{fmtDate(l.created_at)}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button className="btn btn-ghost btn-xs" onClick={()=>setModal({type:"lead",row:l})}>✎</button>
+                      <button className="btn btn-ghost btn-xs danger" onClick={()=>remove(l.id)}>✕</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!rows.length&&<tr><td colSpan={7}><Empty text="Lidlar yo'q" icon="📣"/></td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   REPORTS
+══════════════════════════════════════════════════════════════════════ */
+function Reports({ t, data, stats, sub }) {
+  const byMonth = useMemo(()=>{
+    const map={};
+    data.payments.forEach(r=>{if(!r.created_at)return;const m=r.created_at.slice(0,7);if(!map[m])map[m]={income:0,expense:0};map[m].income+=Number(r.amount||0);});
+    data.expenses.forEach(r=>{if(!r.created_at)return;const m=r.created_at.slice(0,7);if(!map[m])map[m]={income:0,expense:0};map[m].expense+=Number(r.amount||0);});
+    return Object.entries(map).sort().slice(-6);
+  },[data]);
+
+  const sources = useMemo(()=>{
+    const map={};
+    data.leads.forEach(l=>{const s=l.source||"Noma'lum";map[s]=(map[s]||0)+1;});
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  },[data.leads]);
+
+  if(sub==="growth")     return <StudentGrowthReport data={data}/>;
+  if(sub==="attendance") return <AttendanceReport    data={data}/>;
+  if(sub==="source")     return <SourceReport        sources={sources} data={data}/>;
+  if(sub==="teachers")   return <TeacherReport       data={data}/>;
+
+  const maxIncome = byMonth.length?Math.max(...byMonth.map(([,v])=>v.income),1):1;
+
+  return (
+    <div className="page-enter grid2">
+      <Card className="pad">
+        <SectionHeader title="Oylik daromad"/>
+        {byMonth.length?byMonth.map(([m,v])=>(
+          <div key={m} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+              <span>{m}</span><span className="green">+{short(v.income)}</span>
+            </div>
+            <ProgressBar value={Math.round(v.income/maxIncome*100)}/>
+          </div>
+        )):<Empty text="Ma'lumot yo'q"/>}
+      </Card>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div className="grid2 mini-grid">
+          <Mini title={t.income}  value={money(stats.income)}  tone="green" sub="Jami"/>
+          <Mini title={t.expense} value={money(stats.expense)} tone="red"   sub="Jami"/>
+          <Mini title={t.profit}  value={money(stats.profit)}  tone={stats.profit>=0?"blue":"red"} sub="Sof"/>
+          <Mini title={t.debtors} value={money(stats.debt)}    tone="red"   sub="Qarzdorlar"/>
+        </div>
+        <Card className="pad">
+          <div className="sc-t" style={{marginBottom:10}}>Ko'rsatkichlar</div>
+          <Line l="Jami to'lovlar"   r={`${data.payments.length} ta`}/>
+          <Line l="Jami xarajatlar"  r={`${data.expenses.length} ta`}/>
+          <Line l="Qarzdorlar soni"  r={`${stats.debtors} ta`}/>
+          <Line l="Jami qarz"        r={<span className="red">{money(stats.debt)}</span>}/>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function StudentGrowthReport({ data }) {
+  const byMonth = useMemo(()=>{const map={};data.students.forEach(s=>{if(!s.created_at)return;const m=s.created_at.slice(0,7);map[m]=(map[m]||0)+1;});return Object.entries(map).sort().slice(-6);},[data.students]);
+  const max=byMonth.length?Math.max(...byMonth.map(([,v])=>v),1):1;
+  return (
+    <div className="page-enter grid2">
+      <Card className="pad">
+        <SectionHeader title="Oylik o'sish"/>
+        {byMonth.map(([m,v])=>(
+          <div key={m} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+              <span>{m}</span><span className="green">+{v}</span>
+            </div>
+            <ProgressBar value={Math.round(v/max*100)}/>
+          </div>
+        ))}
+        {!byMonth.length&&<Empty text="Ma'lumot yo'q"/>}
+      </Card>
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:10}}>Statistika</div>
+        <Line l="Jami"        r={data.students.length}/>
+        <Line l="Faol"        r={data.students.filter(s=>(s.status||"active")==="active").length}/>
+        <Line l="Muzlatilgan" r={data.students.filter(s=>s.status==="frozen").length}/>
+        <Line l="Arxiv"       r={data.students.filter(s=>s.status==="archived").length}/>
+      </Card>
+    </div>
+  );
+}
+
+function AttendanceReport({ data }) {
+  const byGroup = useMemo(()=>{
+    const groups=[...new Set(data.attendance.map(a=>a.group_name).filter(Boolean))];
+    return groups.map(g=>{const rows=data.attendance.filter(a=>a.group_name===g);return{group:g,rate:attRate(rows),total:rows.length};}).sort((a,b)=>b.rate-a.rate);
+  },[data.attendance]);
+  return (
+    <div className="page-enter grid2">
+      <Card className="pad">
+        <SectionHeader title="Guruhlar bo'yicha davomat"/>
+        {byGroup.map(({group,rate,total})=>(
+          <div key={group} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+              <span>{group}</span>
+              <span className={rate>75?"green":"red"}>{rate}% ({total})</span>
+            </div>
+            <ProgressBar value={rate}/>
+          </div>
+        ))}
+        {!byGroup.length&&<Empty text="Davomat ma'lumotlari yo'q"/>}
+      </Card>
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:10}}>Statistika</div>
+        <Line l="O'rtacha davomat" r={`${attRate(data.attendance)}%`}/>
+        <Line l="Jami yozuvlar"   r={data.attendance.length}/>
+        <Line l="Kelgan ✓"        r={data.attendance.filter(a=>a.status==="present").length}/>
+        <Line l="Kelmagan ✗"      r={data.attendance.filter(a=>a.status==="absent").length}/>
+        <Line l="Kechikkan !"     r={data.attendance.filter(a=>a.status==="late").length}/>
+      </Card>
+    </div>
+  );
+}
+
+function SourceReport({ sources, data }) {
+  const total=sources.reduce((s,[,v])=>s+v,0)||1;
+  return (
+    <div className="page-enter grid2">
+      <Card className="pad">
+        <SectionHeader title="Lidlar manbasi"/>
+        {sources.map(([src,cnt])=>(
+          <div key={src} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+              <span>{src}</span><span className="green">{cnt} ({Math.round(cnt/total*100)}%)</span>
+            </div>
+            <ProgressBar value={Math.round(cnt/total*100)}/>
+          </div>
+        ))}
+        {!sources.length&&<Empty text="Lidlar yo'q"/>}
+      </Card>
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:10}}>Bosqichlar</div>
+        {STAGES.map(s=>(
+          <Line key={s.id} l={s.label} r={<Pill type={s.color}>{data.leads.filter(l=>l.stage===s.id).length}</Pill>}/>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function TeacherReport({ data }) {
+  return (
+    <div className="page-enter">
+      <Card>
+        <table className="tbl">
+          <thead><tr><th>O'qituvchi</th><th>Fan</th><th>Guruhlar</th><th>Talabalar</th><th>Davomat</th><th>Maosh</th></tr></thead>
+          <tbody>
+            {data.teachers.map(tc=>{
+              const groups=data.study_groups.filter(g=>g.teacher_name===tc.full_name);
+              const students=data.students.filter(s=>groups.some(g=>g.name===s.group_name));
+              const attRows=data.attendance.filter(a=>groups.some(g=>g.name===a.group_name));
+              return (
+                <tr key={tc.id} className="tbl-row">
+                  <td><Person name={tc.full_name} sub={tc.phone}/></td>
+                  <td>{tc.subject?<Pill>{tc.subject}</Pill>:"—"}</td>
+                  <td><span className="badge-count">{groups.length}</span></td>
+                  <td><span className="badge-count">{students.length}</span></td>
+                  <td><span className={attRate(attRows)>75?"green":"red"}>{attRate(attRows)}%</span></td>
+                  <td className="money green">{money(tc.salary_value)}</td>
+                </tr>
+              );
+            })}
+            {!data.teachers.length&&<tr><td colSpan={6}><Empty text="O'qituvchilar yo'q"/></td></tr>}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SETTINGS
+══════════════════════════════════════════════════════════════════════ */
+function Settings({ t, data, setModal, loadAll }) {
+  const toast = useToast();
+  const s     = data.settings[0] || {};
+  const [form,   setFormData] = useState({center_name:s.center_name||"X-MASTER",phone:s.phone||"",address:s.address||""});
+  const [saving, setSaving]   = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const op = s.id
+      ? db.from("settings").update(form).eq("id",s.id)
+      : db.from("settings").insert(form);
+    const { error } = await op;
+    setSaving(false);
+    if(error) return toast(error.message,"error");
+    toast("Sozlamalar saqlandi"); loadAll();
+  };
+
+  return (
+    <div className="page-enter grid2">
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:14}}>{t.centerInfo}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+          {[["center_name","Markaz nomi"],["phone",t.phone],["address","Manzil"]].map(([k,label])=>(
+            <FieldInput key={k} label={label} value={form[k]||""}
+              onChange={v=>setFormData(f=>({...f,[k]:v}))}/>
+          ))}
+        </div>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
+          {saving?"⟳ Saqlanmoqda...":t.save}
+        </button>
+      </Card>
+
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:14}}>Filiallar</div>
+        {data.branches.map(b=><Line key={b.id} l={b.name} r={b.address}/>)}
+        {!data.branches.length&&<Empty text="Filiallar yo'q"/>}
+        <button className="btn btn-primary btn-sm" style={{marginTop:12}}
+          onClick={()=>setModal({type:"branch"})}>+ Filial qo'shish</button>
+      </Card>
+
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:14}}>{t.roles}</div>
+        {[
+          ["Superadmin","Barcha funksiyalarga kirish","green"],
+          ["Admin","Asosiy funksiyalar","blue"],
+          ["O'qituvchi","Davomat va jadval","orange"],
+          ["Kassa","Moliyaviy operatsiyalar","purple"]
+        ].map(([role,desc,tone])=>(
+          <div key={role} className="line">
+            <div>
+              <div style={{fontWeight:800,fontSize:12,color:"var(--text-strong)"}}>{role}</div>
+              <div style={{fontSize:10,color:"var(--muted)"}}>{desc}</div>
+            </div>
+            <Pill type={tone}>Faol</Pill>
+          </div>
+        ))}
+      </Card>
+
+      <Card className="pad">
+        <div className="sc-t" style={{marginBottom:14}}>Tizim statistikasi</div>
+        <Line l="Talabalar"         r={data.students.length}/>
+        <Line l="Guruhlar"          r={data.study_groups.length}/>
+        <Line l="O'qituvchilar"     r={data.teachers.length}/>
+        <Line l="To'lovlar"         r={data.payments.length}/>
+        <Line l="Davomat yozuvlari" r={data.attendance.length}/>
+        <Line l="Lidlar"            r={data.leads.length}/>
+        <Line l="Bildirishnomalar"  r={data.notifications.length}/>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODAL  (Create / Edit)
+══════════════════════════════════════════════════════════════════════ */
+function Modal({ modal, t, data, close, loadAll }) {
+  const toast  = useToast();
+  const isEdit = !!modal.row?.id;
+  const [form,   setForm]   = useState(modal.row||{});
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const firstRef = useRef(null);
+
+  const set = (k,v) => { setForm(f=>({...f,[k]:v})); setErrors(e=>({...e,[k]:null})); };
+
+  useEffect(()=>{ setTimeout(()=>firstRef.current?.focus(),80); },[]);
+
+  const CONFIGS = {
+    student: {
+      title:isEdit?"Talabani tahrirlash":t.addStudent, table:"students",
+      fields:[
+        {k:"full_name",    label:t.name,             req:true},
+        {k:"phone",        label:t.phone,             type:"tel"},
+        {k:"parent_phone", label:"Ota-ona telefoni",  type:"tel"},
+        {k:"group_name",   label:t.group,             type:"select", opts:data.study_groups.map(g=>({v:g.name,l:g.name}))},
+        {k:"balance",      label:"Balans (so'm)",      type:"number"},
+        {k:"status",       label:t.status,            type:"select", opts:[{v:"active",l:"Faol"},{v:"frozen",l:"Muzlatilgan"},{v:"archived",l:"Arxiv"}]},
+        {k:"note",         label:"Izoh",              full:true},
+      ]
+    },
+    group: {
+      title:isEdit?"Guruhni tahrirlash":t.addGroup, table:"study_groups",
+      fields:[
+        {k:"name",         label:"Guruh nomi",        req:true},
+        {k:"subject",      label:t.subject,           req:true},
+        {k:"teacher_name", label:t.teacher,           type:"select", opts:data.teachers.map(tc=>({v:tc.full_name,l:tc.full_name}))},
+        {k:"price",        label:"Narx (so'm)",        type:"number"},
+        {k:"capacity",     label:t.capacity,          type:"number"},
+        {k:"schedule_text",label:"Jadval matni",      full:true},
+        {k:"status",       label:t.status,            type:"select", opts:[{v:"active",l:"Faol"},{v:"closed",l:"Yopilgan"}]},
+      ]
+    },
+    teacher: {
+      title:isEdit?"O'qituvchini tahrirlash":"Yangi o'qituvchi", table:"teachers",
+      fields:[
+        {k:"full_name",    label:t.name,              req:true},
+        {k:"phone",        label:t.phone,             type:"tel"},
+        {k:"subject",      label:t.subject},
+        {k:"salary_type",  label:"Maosh turi",        type:"select", opts:[{v:"fixed",l:"Belgilangan"},{v:"percent",l:"Foiz (%)"},{v:"hourly",l:"Soatbay"}]},
+        {k:"salary_value", label:"Maosh miqdori",      type:"number"},
+        {k:"status",       label:t.status,            type:"select", opts:[{v:"active",l:"Faol"},{v:"inactive",l:"Nofaol"}]},
+      ]
+    },
+    payment: {
+      title:t.addPayment, table:"payments",
+      fields:[
+        {k:"student_name", label:t.name,              req:true, type:"select", opts:data.students.map(s=>({v:s.full_name,l:s.full_name}))},
+        {k:"group_name",   label:t.group,             type:"select", opts:data.study_groups.map(g=>({v:g.name,l:g.name}))},
+        {k:"amount",       label:"Summa (so'm)",       req:true, type:"number"},
+        {k:"method",       label:t.method,            type:"select", opts:[{v:"cash",l:"Naqd"},{v:"card",l:"Karta"},{v:"transfer",l:"O'tkazma"},{v:"online",l:"Online"}]},
+        {k:"note",         label:"Izoh",              full:true},
+      ]
+    },
+    expense: {
+      title:t.addExpense, table:"expenses",
+      fields:[
+        {k:"category",     label:"Kategoriya",        req:true, type:"select", opts:[{v:"rent",l:"Ijara"},{v:"salary",l:"Maosh"},{v:"utility",l:"Kommunal"},{v:"equipment",l:"Jihozlar"},{v:"marketing",l:"Marketing"},{v:"other",l:"Boshqa"}]},
+        {k:"amount",       label:"Summa (so'm)",       req:true, type:"number"},
+        {k:"method",       label:t.method,            type:"select", opts:[{v:"cash",l:"Naqd"},{v:"card",l:"Karta"},{v:"transfer",l:"O'tkazma"}]},
+        {k:"note",         label:"Izoh",              full:true},
+      ]
+    },
+    lead: {
+      title:isEdit?"Lidni tahrirlash":"Yangi lid", table:"leads",
+      fields:[
+        {k:"full_name",         label:t.name,          req:true},
+        {k:"phone",             label:t.phone,         type:"tel"},
+        {k:"source",            label:"Manba",         type:"select", opts:[{v:"instagram",l:"Instagram"},{v:"telegram",l:"Telegram"},{v:"facebook",l:"Facebook"},{v:"friend",l:"Do'stdan"},{v:"call",l:"Qo'ng'iroq"},{v:"other",l:"Boshqa"}]},
+        {k:"stage",             label:"Bosqich",       type:"select", opts:STAGES.map(s=>({v:s.id,l:s.label}))},
+        {k:"interested_course", label:"Qiziqtirgan kurs"},
+        {k:"note",              label:"Izoh",          full:true},
+      ]
+    },
+    attendance: {
+      title:"Davomat belgilash", table:"attendance",
+      fields:[
+        {k:"student_name", label:t.name,    req:true, type:"select", opts:data.students.map(s=>({v:s.full_name,l:s.full_name}))},
+        {k:"group_name",   label:t.group,             type:"select", opts:data.study_groups.map(g=>({v:g.name,l:g.name}))},
+        {k:"lesson_date",  label:t.date,    req:true, type:"date"},
+        {k:"status",       label:t.status,  req:true, type:"select", opts:[{v:"present",l:"Keldi ✓"},{v:"absent",l:"Kelmadi ✗"},{v:"late",l:"Kechikdi !"}]},
+        {k:"note",         label:"Sabab",             full:true},
+      ]
+    },
+    schedule: {
+      title:"Dars qo'shish", table:"schedules",
+      fields:[
+        {k:"group_name",   label:t.group,    req:true, type:"select", opts:data.study_groups.map(g=>({v:g.name,l:g.name}))},
+        {k:"teacher_name", label:t.teacher,            type:"select", opts:data.teachers.map(tc=>({v:tc.full_name,l:tc.full_name}))},
+        {k:"day_name",     label:"Kun",      req:true, type:"select", opts:["Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"].map(d=>({v:d,l:d}))},
+        {k:"start_time",   label:"Boshlanish",req:true,type:"time"},
+        {k:"end_time",     label:"Tugash",             type:"time"},
+        {k:"room",         label:"Xona raqami"},
+      ]
+    },
+    branch: {
+      title:"Filial qo'shish", table:"branches",
+      fields:[
+        {k:"name",    label:"Filial nomi", req:true},
+        {k:"address", label:"Manzil",      full:true},
+      ]
+    },
+  };
+
+  const cfg = CONFIGS[modal.type];
+  if(!cfg) return null;
+
+  const validate = () => {
+    const errs={};
+    cfg.fields.filter(f=>f.req).forEach(f=>{ if(!form[f.k]) errs[f.k]=`${f.label} majburiy`; });
+    setErrors(errs);
+    return !Object.keys(errs).length;
+  };
+
+  const submit = async () => {
+    if(!validate()) return toast("Majburiy maydonlarni to'ldiring","warning");
+    setSaving(true);
+    try {
+      if(isEdit) {
+        const { id, created_at, ...rest } = form;
+        const { error } = await db.from(cfg.table).update(rest).eq("id",id);
+        if(error) throw error;
+        toast("Muvaffaqiyatli yangilandi");
+      } else {
+        const { error } = await db.from(cfg.table).insert(form);
+        if(error) throw error;
+        toast("Muvaffaqiyatli qo'shildi");
+      }
+      close(); await loadAll();
+    } catch(e){ toast(e.message,"error"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&close()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div className="modal-hd">
+          <b id="modal-title">{cfg.title}</b>
+          <button className="modal-close" onClick={close} aria-label="Yopish" disabled={saving}>×</button>
+        </div>
+        <div className="modal-body">
+          {cfg.fields.map(({k,label,type="text",opts,full,req},idx)=>(
+            <label className={`field ${full?"field-full":""} ${errors[k]?"field-error":""}`} key={k}>
+              <span className="field-label">
+                {label}{req&&<span className="req-star" aria-hidden="true">*</span>}
+              </span>
+              {type==="select" ? (
+                <select ref={idx===0?firstRef:null}
+                  value={form[k]||""} onChange={e=>set(k,e.target.value)}
+                  className={`select-input ${errors[k]?"input-err":""}`}>
+                  <option value="">— Tanlang —</option>
+                  {(opts||[]).map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+                </select>
+              ) : (
+                <input ref={idx===0?firstRef:null}
+                  type={type} value={form[k]||""} onChange={e=>set(k,e.target.value)}
+                  placeholder={label}
+                  className={errors[k]?"input-err":""}/>
+              )}
+              {errors[k] && <span className="field-err-msg" role="alert">{errors[k]}</span>}
+            </label>
+          ))}
+        </div>
+        <div className="modal-ft">
+          <button className="btn btn-ghost" onClick={close} disabled={saving}>{t.cancel}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={saving}>
+            {saving?<><span className="spin-sm">⟳</span> Saqlanmoqda...</>:(isEdit?"Yangilash":t.save)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DETAIL DRAWER
+══════════════════════════════════════════════════════════════════════ */
+function Detail({ detail, t, data, close, setModal, loadAll }) {
+  const toast   = useToast();
+  const confirm = useConfirm();
+  const r = detail.row;
+  if(detail.type!=="student") return null;
+
+  const payments = data.payments.filter(p=>p.student_name===r.full_name);
+  const attRows  = data.attendance.filter(a=>a.student_name===r.full_name);
+  const rate     = attRate(attRows);
+
+  const archive = async () => {
+    if(!await confirm("Bu talabani arxivlamoqchimisiz?")) return;
+    const { error } = await db.from("students").update({status:"archived"}).eq("id",r.id);
+    if(error) return toast(error.message,"error");
+    toast("Arxivlandi"); close(); loadAll();
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&close()}>
+      <div className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+        <div className="modal-hd">
+          <b id="drawer-title">Talaba profili</b>
+          <button className="modal-close" onClick={close} aria-label="Yopish">×</button>
+        </div>
+        <div className="drawer-body">
+          {/* Profile head */}
+          <div className="profile-head">
+            <div className="profile-avatar">{initials(r.full_name)}</div>
+            <div className="profile-info">
+              <div className="profile-name">{r.full_name}</div>
+              <div className="profile-phone">{r.phone||"—"}</div>
+            </div>
+            <Pill type={Number(r.balance||0)<0?"red":"green"}>{money(r.balance)}</Pill>
+          </div>
+
+          {/* Details */}
+          <div className="drawer-section">
+            <Line l={t.phone}    r={r.phone}/>
+            <Line l="Ota-ona"    r={r.parent_phone}/>
+            <Line l={t.group}    r={r.group_name}/>
+            <Line l={t.status}   r={<StatusPill status={r.status||"active"} t={t}/>}/>
+            <Line l="Davomat"    r={
+              <span className={rate>75?"green":"red"}>
+                {rate}% <span className="muted">({attRows.length} dars)</span>
+              </span>
+            }/>
+            {r.note && <Line l="Izoh" r={r.note}/>}
+          </div>
+
+          {/* Payments */}
+          <div className="drawer-section">
+            <div className="drawer-section-title">So'nggi to'lovlar</div>
+            {payments.slice(0,5).map(p=>(
+              <div key={p.id} className="fin-row">
+                <div className="fin-name">
+                  <b className="green">+{money(p.amount)}</b>
+                  <small>{p.method||"—"} · {fmtFull(p.created_at)}</small>
+                </div>
+                <MethodBadge method={p.method}/>
+              </div>
+            ))}
+            {!payments.length && <Empty text="To'lovlar yo'q"/>}
+          </div>
+
+          {/* Attendance summary */}
+          <div className="drawer-section">
+            <div className="drawer-section-title">Davomat xulosasi</div>
+            <Line l="Jami darslar"  r={attRows.length}/>
+            <Line l="Kelgan"        r={<span className="green">{attRows.filter(a=>a.status==="present").length}</span>}/>
+            <Line l="Kelmagan"      r={<span className="red">{attRows.filter(a=>a.status==="absent").length}</span>}/>
+            <Line l="Kechikkan"     r={<span className="muted">{attRows.filter(a=>a.status==="late").length}</span>}/>
+          </div>
+        </div>
+
+        <div className="drawer-footer">
+          <button className="btn btn-primary" style={{flex:1}}
+            onClick={()=>{ setModal({type:"payment",row:{student_name:r.full_name,group_name:r.group_name}}); close(); }}>
+            + {t.addPayment}
+          </button>
+          <button className="btn btn-ghost"
+            onClick={()=>{ setModal({type:"student",row:r}); close(); }}>✎</button>
+          <button className="btn btn-ghost danger" onClick={archive}>Arxiv</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UI Primitives
+══════════════════════════════════════════════════════════════════════ */
+function Card({ children, className="" }) {
+  return <div className={`card ${className}`}>{children}</div>;
+}
+
+function SectionHeader({ title, action, onAction, style }) {
+  return (
+    <div className="sc-hd" style={style}>
+      <div className="sc-t">{title}</div>
+      {action && (
+        <button className="btn btn-ghost btn-sm" onClick={onAction}>{action}</button>
+      )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon, tone, sub, trend, onClick }) {
+  return (
+    <div className={`stat-card stat-${tone}`} onClick={onClick}
+      style={onClick?{cursor:"pointer"}:{}} role={onClick?"button":undefined} tabIndex={onClick?0:undefined}>
+      <div className="stat-icon">{icon}</div>
+      <div className="stat-body">
+        <div className="stat-value">{value}</div>
+        <div className="stat-label">{label}</div>
+        {(sub||trend) && <div className="stat-trend">{sub||trend}</div>}
+      </div>
+    </div>
+  );
+}
+
+function FinanceHeroCard({ title, value, tone, icon, sub }) {
+  return (
+    <div className={`finance-card finance-${tone}`}>
+      <div className="fc-icon">{icon}</div>
+      <div className="fc-body">
+        <div className="fc-value">{value}</div>
+        <div className="fc-label">{title}</div>
+        {sub && <div className="fc-sub">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function Person({ name, sub }) {
+  return (
+    <div className="person">
+      <div className="avatar">{initials(name)}</div>
+      <div>
+        <b>{name||"—"}</b>
+        {sub && <small>{sub}</small>}
+      </div>
+    </div>
+  );
+}
+
+function Pill({ children, type="blue" }) {
+  return <span className={`pill pill-${type}`}>{children}</span>;
+}
+
+function ProgressBar({ value=0, color }) {
+  const v = Math.max(0,Math.min(100,Number(value)||0));
+  return (
+    <div className="prog-wrap" role="progressbar"
+      aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}>
+      <div className="prog-bar" style={{
+        width:`${v}%`,
+        background: color==="red"?"var(--danger)":color==="green"?"var(--success)":undefined
+      }}/>
+    </div>
+  );
+}
+
+function Mini({ title, value, tone="blue", sub }) {
+  return (
+    <div className={`mini ${tone}`}>
+      <span>{title}</span>
+      <b>{value}</b>
+      {sub && <small>{sub}</small>}
+    </div>
+  );
+}
+
+function Line({ l, r }) {
+  return (
+    <div className="line">
+      <span>{l}</span>
+      <b>{r==null||r===""?"—":r}</b>
+    </div>
+  );
+}
+
+function FieldInput({ label, value, onChange, type="text" }) {
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={label}/>
+    </label>
+  );
+}
+
+function FinanceLine({ name, sub, amount, date }) {
+  return (
+    <div className="fin-row">
+      <div className="avatar">{initials(name)}</div>
+      <div className="fin-name">
+        <b>{name||"—"}</b>
+        <small>{sub||"—"}</small>
+      </div>
+      <div className="fin-amt green">+{money(amount)}</div>
+      <div className="fin-date">{date}</div>
+    </div>
+  );
+}
+
+function GroupLine({ g, count }) {
+  const cap = Number(g.capacity||15);
+  const pct = Math.min(100,Math.round(count/cap*100));
+  return (
+    <div className="group-line">
+      <div>
+        <b>{g.name}</b>
+        <small>{g.teacher_name||"—"} · {g.schedule_text||"—"}</small>
+      </div>
+      <span>{count}/{cap}</span>
+      <ProgressBar value={pct}/>
+      <Pill type={pct>=100?"orange":"green"}>{pct>=100?"To'lgan":"Faol"}</Pill>
+    </div>
+  );
+}
+
+function Notice({ n }) {
+  return (
+    <div className={`notif ${n.is_read?"":"notif-unread"}`}>
+      <div className={`nd ${n.type==="warning"?"warning":n.type==="payment"?"payment":n.type==="error"?"danger":""}`}/>
+      <div style={{flex:1}}>
+        <div className="nt">{n.title}</div>
+        <div className="ns">{n.body||fmtDate(n.created_at)}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ status, t }) {
+  const MAP = {
+    active:   ["green",  t.active],
+    frozen:   ["blue",   t.frozen],
+    archived: ["orange", t.archived],
+    inactive: ["orange", "Nofaol"],
+  };
+  const [type, label] = MAP[status]||["blue",status];
+  return <Pill type={type}>{label}</Pill>;
+}
+
+function MethodBadge({ method }) {
+  const MAP = { cash:"💵 Naqd", card:"💳 Karta", transfer:"🏦 O'tkazma", online:"📱 Online" };
+  return <span className="muted">{MAP[method]||method||"—"}</span>;
+}
+
+function CategoryBadge({ cat }) {
+  const MAP = { rent:"🏠 Ijara", salary:"👤 Maosh", utility:"⚡ Kommunal", equipment:"🖥 Jihozlar", marketing:"📣 Marketing", other:"📦 Boshqa" };
+  return <span>{MAP[cat]||cat||"—"}</span>;
+}
+
+function Empty({ text="Ma'lumot yo'q", icon="", action, onAction }) {
+  return (
+    <div className="empty-state">
+      {icon && <div className="empty-icon">{icon}</div>}
+      <div className="empty-text">{text}</div>
+      {action && (
+        <button className="btn btn-primary btn-sm" onClick={onAction}>{action}</button>
+      )}
+    </div>
+  );
+}
