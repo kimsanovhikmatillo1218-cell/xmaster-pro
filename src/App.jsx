@@ -292,27 +292,52 @@ function AppInner() {
 ══════════════════════════════════════════════════════════════════════ */
 
 function Groups({ t, rows, data, setModal, nav, loadAll }) {
-  const toast = useToast(), confirm = useConfirm();
+  const toast   = useToast();
+  const confirm = useConfirm();
   const [view, setView] = useState("grid");
+
   const remove = async id => {
-    if (!await confirm(t.confirmDelete)) return;
+    if (!await confirm(t?.confirmDelete || "O'chirasizmi?")) return;
     const { error } = await db.from("study_groups").delete().eq("id", id);
     if (error) return toast(error.message, "error");
     toast("Guruh o'chirildi"); loadAll();
   };
+
+  const safeRows = Array.isArray(rows) ? rows : [];
+
   return (
-    <div className="page-enter">
-      <div className="page-toolbar">
+    <div className="page-enter" style={{ minHeight: 200 }}>
+      {/* Toolbar */}
+      <div className="page-toolbar" style={{ marginBottom: 16 }}>
         <div className="filter-tabs">
           <button className={`filter-tab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>▤ Grid</button>
           <button className={`filter-tab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>≡ Ro'yxat</button>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "group" })}>+ Guruh</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "group" })}>
+          + Guruh qo'shish
+        </button>
       </div>
-      {view === "grid" ? (
+
+      {/* Empty state */}
+      {safeRows.length === 0 && view === "grid" && (
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🎓</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-strong)", marginBottom: 8 }}>
+            Guruhlar hali yo'q
+          </div>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+            Birinchi guruhingizni yarating
+          </div>
+          <button className="btn btn-primary" onClick={() => setModal({ type: "group" })}>
+            + Birinchi guruh qo'shish
+          </button>
+        </div>
+      )}
+
+      {view === "grid" && safeRows.length > 0 ? (
         <div className="grid3">
-          {rows.map(g => {
-            const count = (data.students || []).filter(s => s.group_name === g.name).length;
+          {safeRows.map(g => {
+            const count = (data?.students || []).filter(s => s.group_name === g.name).length;
             const cap = Number(g.capacity || 15);
             const pct = Math.min(100, Math.round(count / cap * 100));
             return (
@@ -333,7 +358,7 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
                 </div>
                 <ProgressBar value={pct} />
                 <div className="card-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => nav("attend")}>{t.attendance}</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => nav("attend")}>Davomat</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "group", row: g })}>✎</button>
                   <button className="btn btn-ghost btn-sm danger" onClick={() => remove(g.id)}>✕</button>
                 </div>
@@ -344,13 +369,13 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
             <span className="add-card-icon">＋</span><span>Yangi guruh</span>
           </div>
         </div>
-      ) : (
+      ) : view === "list" ? (
         <Card>
           <table className="tbl">
             <thead><tr><th>Guruh</th><th>O'qituvchi</th><th>Fan</th><th>Narx</th><th>Bandlik</th><th>Amal</th></tr></thead>
             <tbody>
-              {rows.map(g => {
-                const count = (data.students || []).filter(s => s.group_name === g.name).length;
+              {safeRows.map(g => {
+                const count = (data?.students || []).filter(s => s.group_name === g.name).length;
                 const cap   = Number(g.capacity || 15);
                 return (
                   <tr key={g.id} className="tbl-row">
@@ -366,11 +391,11 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
                   </tr>
                 );
               })}
-              {!rows.length && <tr><td colSpan={6}><Empty text="Guruhlar yo'q" icon="🎓" /></td></tr>}
+              {!safeRows.length && <tr><td colSpan={6}><Empty text="Guruhlar yo'q" icon="🎓" onAction={() => setModal({ type: "group" })} action="+ Guruh qo'shish" /></td></tr>}
             </tbody>
           </table>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }
