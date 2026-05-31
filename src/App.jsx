@@ -205,7 +205,7 @@ function AppInner() {
                 return (
                   <button key={pid} className={`nm ${page === pid ? "on" : ""}`} onClick={() => nav(pid)}>
                     <span className="nm-icon">{p.icon}</span>
-                    <span className="nm-label">{t[p.key]}</span>
+                    <span className="nm-txt">{t[p.key]}</span>
                     {badge > 0 && <span className={`nm-badge ${p.dot ? "" : "blue"}`}>{badge}</span>}
                   </button>
                 );
@@ -260,7 +260,7 @@ function AppInner() {
         </header>
 
         <div className="content">
-          {loading && <div className="loading-bar"><div className="loading-progress" /></div>}
+          {loading && <div className="load-bar"><div className="load-prog" /></div>}
           {page === "dash"      && <Dashboard  {...shared} filteredStudents={filteredStudents} />}
           {page === "students"  && <Students   {...shared} rows={filteredStudents} />}
           {page === "groups"    && <Groups     {...shared} rows={data.study_groups || []} />}
@@ -305,10 +305,10 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
   const safeRows = Array.isArray(rows) ? rows : [];
 
   return (
-    <div className="page-enter" style={{ minHeight: 200 }}>
+    <div className="page-fade" style={{ minHeight: 200 }}>
       {/* Toolbar */}
-      <div className="page-toolbar" style={{ marginBottom: 16 }}>
-        <div className="filter-tabs">
+      <div className="pg-toolbar" style={{ marginBottom: 16 }}>
+        <div className="tabs">
           <button className={`ftab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>▤ Grid</button>
           <button className={`ftab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>≡ Ro'yxat</button>
         </div>
@@ -334,29 +334,29 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
       )}
 
       {view === "grid" && safeRows.length > 0 ? (
-        <div className="grid3">
+        <div className="g3">
           {safeRows.map(g => {
             const count = (data?.students || []).filter(s => s.group_name === g.name).length;
             const cap = Number(g.capacity || 15);
             const pct = Math.min(100, Math.round(count / cap * 100));
             return (
-              <div className="group-card" key={g.id}>
-                <div className="group-card-top">
+              <div className="grp-card" key={g.id}>
+                <div className="grp-head">
                   <div>
-                    <div className="group-title">{g.name}</div>
-                    <div className="group-sub">{g.teacher_name || "—"} · {g.subject || "—"}</div>
+                    <div className="grp-name">{g.name}</div>
+                    <div className="grp-teacher">{g.teacher_name || "—"} · {g.subject || "—"}</div>
                   </div>
                   <Pill type={pct >= 100 ? "orange" : pct >= 80 ? "blue" : "green"}>
                     {pct >= 100 ? "To'lgan" : "Faol"}
                   </Pill>
                 </div>
-                <div className="group-info">🕒 {g.schedule_text || "—"} · {money(g.price || 0)}</div>
-                <div className="group-meta">
+                <div className="grp-info">🕒 {g.schedule_text || "—"} · {money(g.price || 0)}</div>
+                <div className="grp-stat">
                   <span>{count}/{cap} talaba</span>
                   <span className={pct >= 80 ? "red" : "green"}>{pct}%</span>
                 </div>
                 <ProgressBar value={pct} />
-                <div className="card-actions">
+                <div className="grp-actions">
                   <button className="btn btn-primary btn-sm" onClick={() => nav("attend")}>Davomat</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "group", row: g })}>✎</button>
                   <button className="btn btn-ghost btn-sm danger" onClick={() => remove(g.id)}>✕</button>
@@ -365,7 +365,7 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
             );
           })}
           <div className="group-card add-card" onClick={() => setModal({ type: "group" })} role="button" tabIndex={0}>
-            <span className="add-card-icon">＋</span><span>Yangi guruh</span>
+            <span className="add-ico">＋</span><span>Yangi guruh</span>
           </div>
         </div>
       ) : view === "list" ? (
@@ -378,12 +378,12 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
                 const cap   = Number(g.capacity || 15);
                 return (
                   <tr key={g.id} className="tbl-row">
-                    <td><b>{g.name}</b><br /><span className="muted" style={{ fontSize: 10 }}>{g.schedule_text}</span></td>
+                    <td><b>{g.name}</b><br /><span className="c-muted" style={{ fontSize: 10 }}>{g.schedule_text}</span></td>
                     <td>{g.teacher_name || "—"}</td>
                     <td>{g.subject ? <Pill>{g.subject}</Pill> : "—"}</td>
                     <td className="money">{money(g.price || 0)}</td>
                     <td><ProgressBar value={Math.min(100, Math.round(count / cap * 100))} /><span style={{ fontSize: 10, color: "var(--muted)" }}>{count}/{cap}</span></td>
-                    <td><div className="row-actions">
+                    <td><div className="row-btns">
                       <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "group", row: g })}>✎</button>
                       <button className="btn btn-ghost btn-xs danger" onClick={() => remove(g.id)}>✕</button>
                     </div></td>
@@ -408,8 +408,8 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
     toast("O'qituvchi o'chirildi"); loadAll();
   };
   return (
-    <div className="page-enter">
-      <div className="page-toolbar"><div /><button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "teacher" })}>+ O'qituvchi</button></div>
+    <div className="page-fade">
+      <div className="pg-toolbar"><div /><button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "teacher" })}>+ O'qituvchi</button></div>
       <Card>
         <table className="tbl">
           <thead><tr><th>FISH</th><th>Telefon</th><th>Fan</th><th>Maosh turi</th><th>Maosh</th><th>Guruhlar</th><th>Holat</th><th>Amal</th></tr></thead>
@@ -421,11 +421,11 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
                   <td><Person name={r.full_name} sub={r.subject} /></td>
                   <td>{r.phone || "—"}</td>
                   <td>{r.subject ? <Pill>{r.subject}</Pill> : "—"}</td>
-                  <td className="muted">{r.salary_type || "—"}</td>
+                  <td className="c-muted">{r.salary_type || "—"}</td>
                   <td className="money green">{money(r.salary_value)}</td>
-                  <td><span className="badge-count">{gc}</span></td>
+                  <td><span className="badge">{gc}</span></td>
                   <td><StatusPill status={r.status || "active"} t={t} /></td>
-                  <td><div className="row-actions">
+                  <td><div className="row-btns">
                     <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "teacher", row: r })}>✎</button>
                     <button className="btn btn-ghost btn-xs danger" onClick={() => remove(r.id)}>✕</button>
                   </div></td>
@@ -453,9 +453,9 @@ function Attendance({ t, data, setModal }) {
   }, [data.attendance]);
   const getStatus = (name, date) => (data.attendance || []).find(a => a.student_name === name && a.lesson_date === date)?.status || null;
   return (
-    <div className="page-enter">
-      <div className="page-toolbar">
-        <select className="select-control" value={selGroup} onChange={e => setSelGroup(e.target.value)}>
+    <div className="page-fade">
+      <div className="pg-toolbar">
+        <select className="sel-ctrl" value={selGroup} onChange={e => setSelGroup(e.target.value)}>
           <option value="">Barcha guruhlar</option>
           {groups.map(g => <option key={g} value={g}>{g}</option>)}
         </select>
@@ -465,14 +465,14 @@ function Attendance({ t, data, setModal }) {
         <div style={{ overflowX: "auto" }}>
           <div className="att-grid" style={{ gridTemplateColumns: `180px repeat(${dates.length},1fr) 56px` }}>
             <div className="att-hdr left">FISH</div>
-            {dates.map(d => <div key={d} className="att-hdr">{new Date(d + "T00:00").getDate()}<br /><span style={{ fontSize: 8, opacity: .6 }}>{["Ya","Du","Se","Ch","Pa","Sh","Ya"][new Date(d + "T00:00").getDay()]}</span></div>)}
-            <div className="att-hdr">%</div>
+            {dates.map(d => <div key={d} className="att-th">{new Date(d + "T00:00").getDate()}<br /><span style={{ fontSize: 8, opacity: .6 }}>{["Ya","Du","Se","Ch","Pa","Sh","Ya"][new Date(d + "T00:00").getDay()]}</span></div>)}
+            <div className="att-th">%</div>
             {students.flatMap(s => {
               const statuses = dates.map(d => getStatus(s.full_name, d));
               const known    = statuses.filter(x => x !== null);
               const rate     = known.length ? Math.round(known.filter(x => x === "present").length / known.length * 100) : null;
               return [
-                <div key={s.id + "n"} className="att-nm" title={s.full_name}>{s.full_name}</div>,
+                <div key={s.id + "n"} className="att-name" title={s.full_name}>{s.full_name}</div>,
                 ...dates.map((d, i) => {
                   const st = statuses[i];
                   return <div key={d} className={`att-dot ${st === "present" ? "ad-g" : st === "absent" ? "ad-r" : st === "late" ? "ad-y" : ""}`}
@@ -481,15 +481,15 @@ function Attendance({ t, data, setModal }) {
                     {st === "present" ? "✓" : st === "absent" ? "✗" : st === "late" ? "!" : "·"}
                   </div>;
                 }),
-                <div key={s.id + "p"} className={`${rate !== null ? (rate > 75 ? "green" : "red") : "muted"} att-pct-cell`}>{rate !== null ? `${rate}%` : "—"}</div>
+                <div key={s.id + "p"} className={`${rate !== null ? (rate > 75 ? "green" : "red") : "c-muted"} att-pct-cell`}>{rate !== null ? `${rate}%` : "—"}</div>
               ];
             })}
           </div>
         </div>
         <div className="att-legend">
-          <span className="att-dot ad-g" style={{ width: 24, height: 18, fontSize: 9 }}>✓</span> Keldi
-          <span className="att-dot ad-r" style={{ width: 24, height: 18, fontSize: 9, marginLeft: 12 }}>✗</span> Kelmadi
-          <span className="att-dot ad-y" style={{ width: 24, height: 18, fontSize: 9, marginLeft: 12 }}>!</span> Kechikdi
+          <span className="att-cell att-p" style={{ width: 24, height: 18, fontSize: 9 }}>✓</span> Keldi
+          <span className="att-cell att-a" style={{ width: 24, height: 18, fontSize: 9, marginLeft: 12 }}>✗</span> Kelmadi
+          <span className="att-cell att-l" style={{ width: 24, height: 18, fontSize: 9, marginLeft: 12 }}>!</span> Kechikdi
         </div>
       </Card>
     </div>
@@ -502,8 +502,8 @@ function Schedule({ data, setModal }) {
   const allGroups = useMemo(() => [...new Set((data.schedules || []).map(s => s.group_name).filter(Boolean))], [data.schedules]);
   const colorMap  = useMemo(() => Object.fromEntries(allGroups.map((g, i) => [g, COLORS[i % COLORS.length]])), [allGroups]);
   return (
-    <div className="page-enter">
-      <div className="page-toolbar">
+    <div className="page-fade">
+      <div className="pg-toolbar">
         <b style={{ fontWeight: 900, fontSize: 14 }}>📅 Haftalik jadval</b>
         <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "schedule" })}>+ Dars qo'shish</button>
       </div>
@@ -511,9 +511,9 @@ function Schedule({ data, setModal }) {
         <div style={{ overflowX: "auto" }}>
           <div className="sch-grid" style={{ gridTemplateColumns: "54px repeat(5,1fr)" }}>
             <div />
-            {days.map(d => <div key={d} className="sch-th">{d.slice(0, 3)}</div>)}
+            {days.map(d => <div key={d} className="sch-day">{d.slice(0, 3)}</div>)}
             {TIMES.map(tm => [
-              <div key={tm} className="sch-tm">{tm}</div>,
+              <div key={tm} className="sch-time">{tm}</div>,
               ...days.map(day => {
                 const cells = (data.schedules || []).filter(s => s.day_name === day && s.start_time === tm);
                 return (
@@ -543,9 +543,9 @@ function Leads({ t, rows, setModal, loadAll }) {
     toast("Lid o'chirildi"); loadAll();
   };
   return (
-    <div className="page-enter">
-      <div className="page-toolbar">
-        <div className="filter-tabs">
+    <div className="page-fade">
+      <div className="pg-toolbar">
+        <div className="tabs">
           <button className={`ftab ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>⬚ Kanban</button>
           <button className={`ftab ${view === "list" ? "on" : ""}`}   onClick={() => setView("list")}>≡ Ro'yxat</button>
         </div>
@@ -559,18 +559,18 @@ function Leads({ t, rows, setModal, loadAll }) {
                 <span>{label}</span>
                 <span className={`pill pill-${color}`}>{rows.filter(x => x.stage === st).length}</span>
               </div>
-              <div className="kb-body">
+              <div className="kb-list">
                 {rows.filter(x => x.stage === st).map(l => (
                   <div className="kb-card" key={l.id}>
                     <div className="kb-name">{l.full_name}</div>
                     <div className="kb-meta">📞 {l.phone || "—"}{l.source && ` · ${l.source}`}</div>
                     {l.interested_course && <div className="kb-course">📚 {l.interested_course}</div>}
-                    <div className="kb-move">
+                    <div className="kb-moves">
                       {LEAD_STAGES.filter(s => s.id !== st).slice(0, 3).map(s => (
-                        <button key={s.id} className="kb-move-btn" onClick={() => move(l.id, s.id)}>→ {s.label.slice(0, 7)}</button>
+                        <button key={s.id} className="kb-move" onClick={() => move(l.id, s.id)}>→ {s.label.slice(0, 7)}</button>
                       ))}
                     </div>
-                    <button className="tiny-x" onClick={() => remove(l.id)}>✕</button>
+                    <button className="kb-del" onClick={() => remove(l.id)}>✕</button>
                   </div>
                 ))}
                 {!rows.filter(x => x.stage === st).length && <div className="kb-empty">Bo'sh</div>}
@@ -588,8 +588,8 @@ function Leads({ t, rows, setModal, loadAll }) {
                   <td><b>{l.full_name}</b></td><td>{l.phone || "—"}</td><td>{l.source || "—"}</td>
                   <td>{l.interested_course || "—"}</td>
                   <td><Pill type={LEAD_STAGES.find(s => s.id === l.stage)?.color || "blue"}>{LEAD_STAGES.find(s => s.id === l.stage)?.label || l.stage}</Pill></td>
-                  <td className="muted">{fmtDate(l.created_at)}</td>
-                  <td><div className="row-actions">
+                  <td className="c-muted">{fmtDate(l.created_at)}</td>
+                  <td><div className="row-btns">
                     <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "lead", row: l })}>✎</button>
                     <button className="btn btn-ghost btn-xs danger" onClick={() => remove(l.id)}>✕</button>
                   </div></td>
@@ -612,9 +612,9 @@ function Homework({ t, data, setModal, loadAll }) {
     toast("Vazifa o'chirildi"); loadAll();
   };
   return (
-    <div className="page-enter">
-      <div className="page-toolbar"><b style={{ fontWeight: 900 }}>📚 Uy vazifalari</b><button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "homework" })}>+ Vazifa</button></div>
-      <div className="grid3">
+    <div className="page-fade">
+      <div className="pg-toolbar"><b style={{ fontWeight: 900 }}>📚 Uy vazifalari</b><button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "homework" })}>+ Vazifa</button></div>
+      <div className="g3">
         {(data.homework || []).map(hw => {
           const subs = (data.homework_submissions || []).filter(s => s.homework_id === hw.id);
           return (
@@ -628,7 +628,7 @@ function Homework({ t, data, setModal, loadAll }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <StatusPill status={hw.status} t={t} /><span style={{ fontSize: 11, color: "var(--text-sub)" }}>{subs.length} topshirdi</span>
               </div>
-              <div className="card-actions">
+              <div className="grp-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "homework", row: hw })}>✎</button>
                 <button className="btn btn-ghost btn-sm danger" onClick={() => remove(hw.id)}>✕</button>
               </div>
@@ -636,7 +636,7 @@ function Homework({ t, data, setModal, loadAll }) {
           );
         })}
         <div className="group-card add-card" onClick={() => setModal({ type: "homework" })} role="button" tabIndex={0}>
-          <span className="add-card-icon">📚</span><span>Vazifa qo'shish</span>
+          <span className="add-ico">📚</span><span>Vazifa qo'shish</span>
         </div>
       </div>
     </div>
@@ -654,9 +654,9 @@ function Grades({ t, data, setModal, loadAll }) {
     toast("Baho o'chirildi"); loadAll();
   };
   return (
-    <div className="page-enter">
-      <div className="page-toolbar">
-        <div className="filter-tabs">
+    <div className="page-fade">
+      <div className="pg-toolbar">
+        <div className="tabs">
           {[["all","Barchasi"],["homework","Uy vazifasi"],["test","Test"],["exam","Imtihon"]].map(([v, l]) => (
             <button key={v} className={`ftab ${filter === v ? "on" : ""}`} onClick={() => setFilter(v)}>{l}</button>
           ))}
@@ -676,7 +676,7 @@ function Grades({ t, data, setModal, loadAll }) {
                   <td>{g.subject || "—"}</td>
                   <td><Pill type={g.grade_type === "exam" ? "red" : g.grade_type === "test" ? "orange" : "blue"}>{g.grade_type || "—"}</Pill></td>
                   <td><span style={{ fontWeight: 900, fontSize: 15, color: pct >= 80 ? "var(--success)" : pct >= 60 ? "var(--warning)" : "var(--danger)" }}>{g.score}</span><span style={{ color: "var(--muted)", fontSize: 11 }}>/{g.max_score || 10}</span></td>
-                  <td className="muted">{fmtDate(g.lesson_date || g.created_at)}</td>
+                  <td className="c-muted">{fmtDate(g.lesson_date || g.created_at)}</td>
                   <td><button className="btn btn-ghost btn-xs danger" onClick={() => remove(g.id)}>✕</button></td>
                 </tr>
               );
@@ -699,9 +699,9 @@ function Reports({ t, data, stats, sub, setSub }) {
   const maxI = byMonth.length ? Math.max(...byMonth.map(([, v]) => v.income), 1) : 1;
 
   return (
-    <div className="page-enter">
-      <div className="page-toolbar">
-        <div className="filter-tabs">
+    <div className="page-fade">
+      <div className="pg-toolbar">
+        <div className="tabs">
           {[["home","Moliyaviy"],["growth","O'sish"],["attendance","Davomat"],["teachers","O'qituvchilar"]].map(([id, label]) => (
             <button key={id} className={`ftab ${sub === id ? "on" : ""}`} onClick={() => setSub(id)}>{label}</button>
           ))}
@@ -710,7 +710,7 @@ function Reports({ t, data, stats, sub, setSub }) {
       </div>
 
       {sub === "home" && (
-        <div className="grid2">
+        <div className="g2">
           <Card className="pad">
             <SectionHeader title="📈 Oylik daromad" />
             {byMonth.map(([m, v]) => (
@@ -725,7 +725,7 @@ function Reports({ t, data, stats, sub, setSub }) {
             {!byMonth.length && <Empty text="Ma'lumot yo'q" />}
           </Card>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div className="grid2 mini-grid">
+            <div className="g2">
               <Mini title="Daromad" value={money(stats.income)}  tone="green" />
               <Mini title="Xarajat" value={money(stats.expense)} tone="red" />
               <Mini title="Foyda"   value={money(stats.profit)}  tone={stats.profit >= 0 ? "blue" : "red"} />
@@ -740,7 +740,7 @@ function Reports({ t, data, stats, sub, setSub }) {
       )}
 
       {sub === "attendance" && (
-        <div className="grid2">
+        <div className="g2">
           <Card className="pad">
             <SectionHeader title="Guruhlar bo'yicha" />
             {[...new Set((data.attendance || []).map(a => a.group_name).filter(Boolean))].map(grp => {
@@ -777,8 +777,8 @@ function Reports({ t, data, stats, sub, setSub }) {
                   <tr key={tc.id} className="tbl-row">
                     <td><Person name={tc.full_name} sub={tc.phone} /></td>
                     <td>{tc.subject ? <Pill>{tc.subject}</Pill> : "—"}</td>
-                    <td><span className="badge-count">{groups.length}</span></td>
-                    <td><span className="badge-count">{students.length}</span></td>
+                    <td><span className="badge">{groups.length}</span></td>
+                    <td><span className="badge">{students.length}</span></td>
                     <td><span style={{ color: attRate(attRows) > 75 ? "var(--success)" : "var(--danger)" }}>{attRate(attRows)}%</span></td>
                     <td className="money green">{money(tc.salary_value)}</td>
                   </tr>
@@ -791,7 +791,7 @@ function Reports({ t, data, stats, sub, setSub }) {
       )}
 
       {sub === "growth" && (
-        <div className="grid2">
+        <div className="g2">
           <Card className="pad">
             <SectionHeader title="👥 Talabalar o'sishi" />
             {Object.entries((data.students || []).reduce((m, s) => { if (!s.created_at) return m; const k = s.created_at.slice(0, 7); m[k] = (m[k] || 0) + 1; return m; }, {})).sort().slice(-6).map(([m, v]) => (
@@ -1018,15 +1018,15 @@ function ModalForm({ modal, t, data, close, loadAll }) {
 
   return (
     <div className="backdrop" onClick={e => e.target === e.currentTarget && close()}>
-      <div className="modal modal-wide" role="dialog" aria-modal="true">
+      <div className="modal modal-w" role="dialog" aria-modal="true">
         <div className="modal-head">
           <b>{cfg.title}</b>
-          <button className="modal-close" onClick={close} disabled={saving}>×</button>
+          <button className="m-close" onClick={close} disabled={saving}>×</button>
         </div>
-        <div className="modal-body">
+        <div className="m-body">
           {cfg.fields.map(({ k, label, type = "text", opts, full, req }, idx) => (
-            <label key={k} className={`field ${full ? "field-full" : ""} ${errors[k] ? "field-error" : ""}`}>
-              <span className="field-label">{label}{req && <span className="req-star">*</span>}</span>
+            <label key={k} className={`field ${full ? "fld-full" : ""} ${errors[k] ? "fld error" : ""}`}>
+              <span className="fld-label">{label}{req && <span className="req-star">*</span>}</span>
               {type === "select" ? (
                 <select ref={idx === 0 ? firstRef : null}
                   value={form[k] || ""} onChange={e => set(k, e.target.value)}
@@ -1039,7 +1039,7 @@ function ModalForm({ modal, t, data, close, loadAll }) {
                   type={type} value={form[k] || ""} onChange={e => set(k, e.target.value)}
                   placeholder={label} className={errors[k] ? "input-err" : ""} />
               )}
-              {errors[k] && <span className="field-err-msg">{errors[k]}</span>}
+              {errors[k] && <span className="fld-err">{errors[k]}</span>}
             </label>
           ))}
         </div>
@@ -1072,7 +1072,7 @@ function DetailDrawer({ detail, t, data, close, setModal, loadAll }) {
   return (
     <div className="backdrop" onClick={e => e.target === e.currentTarget && close()}>
       <div className="drawer">
-        <div className="modal-head"><b>👤 Talaba profili</b><button className="modal-close" onClick={close}>×</button></div>
+        <div className="modal-head"><b>👤 Talaba profili</b><button className="m-close" onClick={close}>×</button></div>
         <div className="drawer-body">
           <div className="profile-head">
             <Avatar name={r.full_name} size={52} />
