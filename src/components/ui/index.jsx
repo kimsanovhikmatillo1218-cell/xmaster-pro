@@ -2,24 +2,24 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { initials } from "../../lib/utils.js";
 
 /* ─── Toast ──────────────────────────────────────────────────────── */
-export const ToastCtx = createContext(()=>{});
+export const ToastCtx = createContext(() => {});
 export const useToast = () => useContext(ToastCtx);
 
 export function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
-  const remove = useCallback(id=>setToasts(t=>t.filter(x=>x.id!==id)),[]);
-  const add = useCallback((msg,type="success")=>{
-    const id=Date.now()+Math.random();
-    setToasts(t=>[...t.slice(-4),{id,msg,type}]);
-    setTimeout(()=>remove(id),3800);
-  },[remove]);
+  const [list, setList] = useState([]);
+  const rm = useCallback(id => setList(t => t.filter(x => x.id !== id)), []);
+  const add = useCallback((msg, type = "success") => {
+    const id = Date.now() + Math.random();
+    setList(t => [...t.slice(-4), { id, msg, type }]);
+    setTimeout(() => rm(id), 3800);
+  }, [rm]);
   return (
     <ToastCtx.Provider value={add}>
       {children}
       <div className="toast-wrap" aria-live="polite">
-        {toasts.map(t=>(
-          <div key={t.id} className={`toast toast-${t.type}`} onClick={()=>remove(t.id)} role="alert">
-            <span className="toast-icon">{t.type==="success"?"✓":t.type==="error"?"✕":"!"}</span>
+        {list.map(t => (
+          <div key={t.id} className={`toast toast-${t.type}`} onClick={() => rm(t.id)}>
+            <span className="toast-icon">{t.type === "success" ? "✓" : t.type === "error" ? "✕" : "!"}</span>
             {t.msg}
           </div>
         ))}
@@ -29,30 +29,30 @@ export function ToastProvider({ children }) {
 }
 
 /* ─── Confirm ────────────────────────────────────────────────────── */
-export const ConfirmCtx = createContext(async()=>false);
+export const ConfirmCtx = createContext(async () => false);
 export const useConfirm = () => useContext(ConfirmCtx);
 
 export function ConfirmProvider({ children }) {
-  const [state, setState] = useState(null);
-  const confirm = useCallback(msg=>new Promise(res=>setState({msg,res})),[]);
-  const handle  = yes=>{ state?.res(yes); setState(null); };
-  useEffect(()=>{
-    if(!state) return;
-    const fn=e=>{ if(e.key==="Escape") handle(false); if(e.key==="Enter") handle(true); };
-    window.addEventListener("keydown",fn);
-    return()=>window.removeEventListener("keydown",fn);
-  },[state]);
+  const [s, setS] = useState(null);
+  const confirm = useCallback(msg => new Promise(res => setS({ msg, res })), []);
+  const handle = yes => { s?.res(yes); setS(null); };
+  useEffect(() => {
+    if (!s) return;
+    const fn = e => { if (e.key === "Escape") handle(false); if (e.key === "Enter") handle(true); };
+    window.addEventListener("keydown", fn);
+    return () => window.removeEventListener("keydown", fn);
+  }, [s]);
   return (
     <ConfirmCtx.Provider value={confirm}>
       {children}
-      {state&&(
-        <div className="modal-backdrop" style={{zIndex:700}} onClick={()=>handle(false)}>
-          <div className="confirm-box" onClick={e=>e.stopPropagation()}>
+      {s && (
+        <div className="backdrop" style={{ zIndex: 700 }} onClick={() => handle(false)}>
+          <div className="confirm-box" onClick={e => e.stopPropagation()}>
             <div className="confirm-icon">⚠️</div>
-            <p className="confirm-msg">{state.msg}</p>
+            <p className="confirm-msg">{s.msg}</p>
             <div className="confirm-btns">
-              <button className="btn btn-ghost" onClick={()=>handle(false)}>Bekor qilish</button>
-              <button className="btn btn-danger" onClick={()=>handle(true)} autoFocus>O'chirish</button>
+              <button className="btn btn-ghost" onClick={() => handle(false)}>Bekor qilish</button>
+              <button className="btn btn-danger" onClick={() => handle(true)} autoFocus>O'chirish</button>
             </div>
           </div>
         </div>
@@ -62,242 +62,232 @@ export function ConfirmProvider({ children }) {
 }
 
 /* ─── Card ───────────────────────────────────────────────────────── */
-export function Card({ children, className="", style }) {
+export function Card({ children, className = "", style }) {
   return <div className={`card ${className}`} style={style}>{children}</div>;
 }
 
-/* ─── SectionHeader ──────────────────────────────────────────────── */
-export function SectionHeader({ title, action, onAction, style }) {
+/* ─── Section Header ─────────────────────────────────────────────── */
+export function SectionHeader({ title, sub, action, onAction, style }) {
   return (
     <div className="sc-hd" style={style}>
-      <div className="sc-t">{title}</div>
-      {action&&<button className="btn btn-ghost btn-sm" onClick={onAction}>{action}</button>}
+      <div>
+        <div className="sc-t">{title}</div>
+        {sub && <div className="sc-sub">{sub}</div>}
+      </div>
+      {action && <button className="btn btn-ghost btn-sm" onClick={onAction}>{action}</button>}
     </div>
   );
 }
 
-/* ─── StatCard ───────────────────────────────────────────────────── */
-export function StatCard({ label, value, icon, tone="blue", sub, trend, onClick }) {
+/* ─── KPI Stat Card ──────────────────────────────────────────────── */
+export function StatCard({ label, value, icon, tone = "blue", sub, trend, trendDir = "neutral", onClick }) {
   return (
-    <div className={`stat-card stat-${tone}`} onClick={onClick}
-      style={onClick?{cursor:"pointer"}:{}} role={onClick?"button":undefined} tabIndex={onClick?0:undefined}>
-      <div className="stat-icon">{icon}</div>
-      <div className="stat-body">
-        <div className="stat-value">{value??0}</div>
-        <div className="stat-label">{label}</div>
-        {(sub||trend)&&<div className="stat-trend">{sub||trend}</div>}
+    <div className={`kpi kpi-${tone} ${onClick ? "clickable" : ""}`} onClick={onClick}>
+      <div className="kpi-icon">{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="kpi-value">{value ?? 0}</div>
+        <div className="kpi-label">{label}</div>
+        {(sub || trend) && (
+          <div className={`kpi-trend ${trendDir}`}>
+            {trend && <span>{trendDir === "up" ? "↑" : trendDir === "down" ? "↓" : ""}</span>}
+            <span>{sub || trend}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Finance Hero ───────────────────────────────────────────────── */
+export function FinanceHeroCard({ title, value, tone, icon, sub }) {
+  return (
+    <div className={`fhero fhero-${tone}`}>
+      <div className="fhero-icon">{icon}</div>
+      <div>
+        <div className="fhero-val">{value}</div>
+        <div className="fhero-label">{title}</div>
+        {sub && <div className="fhero-sub">{sub}</div>}
       </div>
     </div>
   );
 }
 
 /* ─── Pill ───────────────────────────────────────────────────────── */
-export function Pill({ children, type="blue" }) {
+export function Pill({ children, type = "blue" }) {
   return <span className={`pill pill-${type}`}>{children}</span>;
 }
 
-/* ─── StatusPill ─────────────────────────────────────────────────── */
+/* ─── Status Pill ────────────────────────────────────────────────── */
 export function StatusPill({ status, t }) {
   const MAP = {
-    active:   ["green",  t?.active||"Faol"],
-    frozen:   ["blue",   t?.frozen||"Muzlatilgan"],
-    archived: ["orange", t?.archived||"Arxiv"],
-    inactive: ["orange", "Nofaol"],
-    on_leave: ["purple", "Ta'tilda"],
-    available:["green",  "Mavjud"],
-    occupied: ["orange", "Band"],
-    maintenance:["red",  "Ta'mirda"],
-    draft:    ["muted",  "Qoralama"],
-    completed:["green",  "Tugallandi"],
-    overdue:  ["red",    "Muddati o'tdi"],
-    returned: ["teal",   "Qaytarildi"],
+    active:      ["green",  "Faol"],
+    frozen:      ["blue",   "Muzlatilgan"],
+    archived:    ["muted",  "Arxiv"],
+    inactive:    ["orange", "Nofaol"],
+    on_leave:    ["purple", "Ta'tilda"],
+    available:   ["green",  "Mavjud"],
+    occupied:    ["orange", "Band"],
+    maintenance: ["red",    "Ta'mirda"],
+    draft:       ["muted",  "Qoralama"],
+    completed:   ["green",  "Tugallandi"],
+    overdue:     ["red",    "Muddati o'tdi"],
+    returned:    ["teal",   "Qaytarildi"],
+    active_loan: ["blue",   "Berilgan"],
+    todo:        ["blue",   "Rejalangan"],
+    in_progress: ["orange", "Jarayonda"],
+    done:        ["green",  "Tugallandi"],
+    cancelled:   ["muted",  "Bekor"],
+    lost:        ["red",    "Yo'qotildi"],
   };
-  const [type, label] = MAP[status]||["blue",status||"—"];
+  const [type, label] = MAP[status] || ["muted", status || "—"];
   return <Pill type={type}>{label}</Pill>;
 }
 
-/* ─── ProgressBar ────────────────────────────────────────────────── */
-export function ProgressBar({ value=0, color }) {
-  const v=Math.max(0,Math.min(100,Number(value)||0));
+/* ─── Progress Bar ───────────────────────────────────────────────── */
+export function ProgressBar({ value = 0, color }) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  const c = color === "green" ? "green" : color === "red" ? "red" : color === "orange" ? "orange" : "";
   return (
-    <div className="prog-wrap" role="progressbar" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}>
-      <div className="prog-bar" style={{
-        width:`${v}%`,
-        background:color==="red"?"var(--danger)":color==="green"?"var(--success)":color==="orange"?"var(--warning)":undefined
-      }}/>
+    <div className="prog">
+      <div className={`prog-bar ${c}`} style={{ width: `${v}%` }} />
     </div>
   );
 }
 
-/* ─── Avatar / Person ────────────────────────────────────────────── */
-export function Avatar({ name, size=30, style }) {
-  const bg = stringToColor(name||"");
+/* ─── Avatar ─────────────────────────────────────────────────────── */
+const COLORS = [
+  ["#3b82f6","#60a5fa"], ["#7c3aed","#a78bfa"], ["#0891b2","#22d3ee"],
+  ["#16a34a","#4ade80"], ["#d97706","#fbbf24"], ["#dc2626","#f87171"],
+  ["#db2777","#f472b6"], ["#0d9488","#2dd4bf"],
+];
+
+function nameColor(name) {
+  let h = 0;
+  for (let i = 0; i < (name || "").length; i++) h = (name.charCodeAt(i) + ((h << 5) - h));
+  return COLORS[Math.abs(h) % COLORS.length];
+}
+
+export function Avatar({ name, size = 32, style }) {
+  const [c1, c2] = nameColor(name);
   return (
     <div style={{
-      width:size, height:size, borderRadius:"50%",
-      background:`linear-gradient(135deg, ${bg}, ${shiftColor(bg)})`,
-      color:"#fff", fontSize:size*0.36, fontWeight:900,
-      display:"flex", alignItems:"center", justifyContent:"center",
-      flexShrink:0, ...style
+      width: size, height: size, borderRadius: "50%",
+      background: `linear-gradient(135deg,${c1},${c2})`,
+      color: "#fff", fontSize: size * 0.36, fontWeight: 900,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0, ...style
     }}>
       {initials(name)}
     </div>
   );
 }
-function stringToColor(str) {
-  let h=0; for(let i=0;i<str.length;i++) h=str.charCodeAt(i)+((h<<5)-h);
-  const colors=["#2563eb","#7c3aed","#0891b2","#16a34a","#d97706","#dc2626","#db2777","#0d9488"];
-  return colors[Math.abs(h)%colors.length];
-}
-function shiftColor(hex) {
-  const n=parseInt(hex.slice(1),16);
-  const r=Math.min(255,(n>>16)+40), g=Math.min(255,(n>>8&0xFF)+20), b=Math.min(255,(n&0xFF)+60);
-  return `#${((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1)}`;
-}
 
-export function Person({ name, sub, size=30 }) {
+/* ─── Person ─────────────────────────────────────────────────────── */
+export function Person({ name, sub, size = 30 }) {
   return (
     <div className="person">
-      <Avatar name={name} size={size}/>
+      <Avatar name={name} size={size} />
       <div>
-        <b>{name||"—"}</b>
-        {sub&&<small>{sub}</small>}
+        <b>{name || "—"}</b>
+        {sub && <small>{sub}</small>}
       </div>
     </div>
   );
 }
 
-/* ─── Mini card ──────────────────────────────────────────────────── */
-export function Mini({ title, value, tone="blue", sub }) {
+/* ─── Mini Card ──────────────────────────────────────────────────── */
+export function Mini({ title, value, tone = "blue", sub }) {
   return (
-    <div className={`mini ${tone}`}>
-      <span>{title}</span>
-      <b>{value}</b>
-      {sub&&<small>{sub}</small>}
+    <div className={`mini-card ${tone}`}>
+      <div className="mini-label">{title}</div>
+      <div className="mini-val">{value}</div>
+      {sub && <div className="mini-sub">{sub}</div>}
     </div>
   );
 }
 
-/* ─── Line ───────────────────────────────────────────────────────── */
+/* ─── Info Row ───────────────────────────────────────────────────── */
 export function Line({ l, r }) {
   return (
-    <div className="line">
-      <span>{l}</span>
-      <b>{r==null||r===""?"—":r}</b>
+    <div className="info-row">
+      <span className="info-row-label">{l}</span>
+      <span className="info-row-val">{r == null || r === "" ? "—" : r}</span>
     </div>
   );
 }
 
-/* ─── Empty state ────────────────────────────────────────────────── */
-export function Empty({ text="Ma'lumot yo'q", icon="", action, onAction }) {
+/* ─── Empty State ────────────────────────────────────────────────── */
+export function Empty({ text = "Ma'lumot yo'q", icon = "", action, onAction }) {
   return (
-    <div className="empty-state">
-      {icon&&<div className="empty-icon">{icon}</div>}
-      <div className="empty-text">{text}</div>
-      {action&&<button className="btn btn-primary btn-sm" onClick={onAction}>{action}</button>}
+    <div className="empty">
+      {icon && <div className="empty-icon">{icon}</div>}
+      <div className="empty-title">{text}</div>
+      {action && <button className="btn btn-primary btn-sm" onClick={onAction}>{action}</button>}
     </div>
   );
 }
 
-/* ─── MethodBadge ────────────────────────────────────────────────── */
+/* ─── Method Badge ───────────────────────────────────────────────── */
 export function MethodBadge({ method }) {
-  const MAP={cash:"💵 Naqd",card:"💳 Karta",transfer:"🏦 O'tkazma",online:"📱 Online"};
-  return <span className="muted" style={{fontSize:11}}>{MAP[method]||method||"—"}</span>;
+  const MAP = { cash: "💵 Naqd", card: "💳 Karta", transfer: "🏦 O'tkazma", online: "📱 Online" };
+  return <span className="c-muted" style={{ fontSize: 12 }}>{MAP[method] || method || "—"}</span>;
 }
 
-/* ─── CategoryBadge ──────────────────────────────────────────────── */
+/* ─── Category Badge ─────────────────────────────────────────────── */
 export function CategoryBadge({ cat }) {
-  const MAP={rent:"🏠 Ijara",salary:"👤 Maosh",utility:"⚡ Kommunal",equipment:"🖥 Jihozlar",marketing:"📣 Marketing",repair:"🔧 Ta'mirlash",other:"📦 Boshqa"};
-  return <span style={{fontSize:11}}>{MAP[cat]||cat||"—"}</span>;
+  const MAP = {
+    rent: "🏠 Ijara", salary: "👤 Maosh", utility: "⚡ Kommunal",
+    equipment: "🖥 Jihozlar", marketing: "📣 Marketing",
+    repair: "🔧 Ta'mirlash", other: "📦 Boshqa",
+  };
+  return <span style={{ fontSize: 12 }}>{MAP[cat] || cat || "—"}</span>;
 }
 
-/* ─── Modal ──────────────────────────────────────────────────────── */
-export function Modal({ title, children, footer, close, wide, xl }) {
-  const ref = useRef(null);
-  useEffect(()=>{ setTimeout(()=>ref.current?.focus(),50); },[]);
+/* ─── Notice ─────────────────────────────────────────────────────── */
+export function Notice({ n }) {
+  const type = n.type === "warning" ? "warning" : n.type === "payment" ? "payment" : n.type === "error" ? "error" : "info";
   return (
-    <div className="modal-backdrop" onClick={e=>e.target===e.currentTarget&&close()}>
-      <div className={`modal ${wide?"modal-wide":""} ${xl?"modal-xl":""}`}
-        ref={ref} tabIndex={-1} role="dialog" aria-modal="true">
-        <div className="modal-hd">
-          <b>{title}</b>
-          <button className="modal-close" onClick={close} aria-label="Yopish">×</button>
-        </div>
-        <div className="modal-body">{children}</div>
-        {footer&&<div className="modal-ft">{footer}</div>}
+    <div className={`notif ${!n.is_read ? "unread" : ""}`}>
+      <div className={`notif-dot ${type}`} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="notif-title">{n.title}</div>
+        {n.body && <div className="notif-body">{n.body}</div>}
       </div>
+      <div className="notif-time">{n.created_at?.slice(0, 10) || ""}</div>
     </div>
   );
 }
 
-/* ─── Field ──────────────────────────────────────────────────────── */
-export function Field({ label, required, error, full, children }) {
-  return (
-    <label className={`field ${full?"field-full":""} ${error?"field-error":""}`}>
-      <span className="field-label">
-        {label}{required&&<span className="req-star">*</span>}
-      </span>
-      {children}
-      {error&&<span className="field-err-msg">{error}</span>}
-    </label>
-  );
-}
-
-/* ─── FinanceHeroCard ────────────────────────────────────────────── */
-export function FinanceHeroCard({ title, value, tone, icon, sub }) {
-  return (
-    <div className={`finance-card finance-${tone}`}>
-      <div className="fc-icon">{icon}</div>
-      <div className="fc-body">
-        <div className="fc-value">{value}</div>
-        <div className="fc-label">{title}</div>
-        {sub&&<div className="fc-sub">{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
-/* ─── FinanceLine ────────────────────────────────────────────────── */
+/* ─── Finance Row ────────────────────────────────────────────────── */
 export function FinanceLine({ name, sub, amount, date }) {
   return (
     <div className="fin-row">
-      <Avatar name={name} size={28}/>
-      <div className="fin-name"><b>{name||"—"}</b><small>{sub||"—"}</small></div>
-      <div className="fin-amt green">+{amount}</div>
+      <Avatar name={name} size={30} />
+      <div className="fin-name">
+        <b>{name || "—"}</b>
+        <small>{sub || "—"}</small>
+      </div>
+      <div className="fin-amt c-green">{amount}</div>
       <div className="fin-date">{date}</div>
     </div>
   );
 }
 
-/* ─── GroupLine ──────────────────────────────────────────────────── */
+/* ─── Group Line ─────────────────────────────────────────────────── */
 export function GroupLine({ g, count }) {
-  const cap=Number(g.capacity||15);
-  const pct=Math.min(100,Math.round(count/cap*100));
+  const cap = Number(g.capacity || 15);
+  const pct = Math.min(100, Math.round(count / cap * 100));
   return (
-    <div className="group-line">
-      <div><b>{g.name}</b><small>{g.teacher_name||"—"} · {g.schedule_text||"—"}</small></div>
-      <span style={{fontSize:11,color:"var(--text-sub)",whiteSpace:"nowrap"}}>{count}/{cap}</span>
-      <div style={{width:60}}><ProgressBar value={pct}/></div>
-      <Pill type={pct>=100?"orange":"green"}>{pct>=100?"To'lgan":"Faol"}</Pill>
-    </div>
-  );
-}
-
-/* ─── Notice ─────────────────────────────────────────────────────── */
-export function Notice({ n }) {
-  return (
-    <div className={`notif ${n.is_read?"":"notif-unread"}`}>
-      <div className={`nd ${n.type==="warning"?"warning":n.type==="payment"?"payment":n.type==="error"?"danger":""}`}/>
-      <div style={{flex:1}}>
-        <div className="nt">{n.title}</div>
-        <div className="ns">{n.body||"—"}</div>
+    <div className="fin-row" style={{ gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-1)" }}>{g.name}</div>
+        <div style={{ fontSize: 11.5, color: "var(--text-4)", marginTop: 2 }}>{g.teacher_name || "—"}</div>
       </div>
-      <div style={{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap"}}>{n.created_at?.slice(0,10)||""}</div>
+      <div style={{ width: 80 }}>
+        <ProgressBar value={pct} color={pct >= 90 ? "red" : pct >= 70 ? "orange" : "green"} />
+        <div style={{ fontSize: 10.5, color: "var(--text-4)", marginTop: 3, textAlign: "right" }}>{count}/{cap}</div>
+      </div>
+      <Pill type={pct >= 100 ? "orange" : "green"}>{pct >= 100 ? "To'lgan" : "Faol"}</Pill>
     </div>
   );
-}
-
-/* ─── Spin ───────────────────────────────────────────────────────── */
-export function Spin() {
-  return <span className="spin" style={{display:"inline-block"}}>↻</span>;
 }

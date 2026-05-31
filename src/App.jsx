@@ -149,9 +149,11 @@ function AppInner() {
     <div className="shell">
       {/* ── Icon bar ─────────────────────────────────────────────── */}
       <aside className="iconbar" role="navigation">
-        <div className="ib-logo">XM</div>
+        <div className="ib-logo">
+          <div className="ib-logo-inner">XM</div>
+        </div>
         {PAGE_GROUPS.map(grp => (
-          <div key={grp.label} style={{ display: "contents" }}>
+          <div key={grp.label} className="ib-group">
             {grp.pages.map(pid => {
               const p = PAGES.find(x => x.id === pid);
               if (!p) return null;
@@ -159,9 +161,7 @@ function AppInner() {
               return (
                 <button key={pid}
                   className={`ib-btn ${page === pid ? "on" : ""}`}
-                  onClick={() => nav(pid)}
-                  title={t[p.key]}
-                  aria-label={t[p.key]}>
+                  onClick={() => nav(pid)} title={t[p.key]}>
                   <span className="ib-icon">{p.icon}</span>
                   {badge > 0 && <span className="ib-dot" />}
                 </button>
@@ -177,9 +177,9 @@ function AppInner() {
         <div className="sb-head">
           <div className="sb-brand">
             <div className="sb-logo">XM</div>
-            <div>
-              <div className="sb-title">X-MASTER Pro</div>
-              <div className="sb-sub">Education CRM</div>
+            <div className="sb-brand-text">
+              <div className="sb-name">X-MASTER Pro</div>
+              <div className="sb-role">Education CRM</div>
             </div>
           </div>
           <label className="sb-search">
@@ -187,28 +187,26 @@ function AppInner() {
             <input id="xm-search" value={query} onChange={e => setQuery(e.target.value)}
               placeholder={t.search} autoComplete="off" />
             {query && <button className="sb-clear" onClick={() => setQuery("")}>×</button>}
-            <kbd className="sb-kbd">⌃K</kbd>
+            <kbd className="sb-search-kbd">⌃K</kbd>
           </label>
         </div>
 
         <nav className="sb-nav">
           {PAGE_GROUPS.map(grp => (
             <div key={grp.label}>
-              <div className="sb-section-label">{grp.label}</div>
+              <div className="sb-section">{grp.label}</div>
               {grp.pages.map(pid => {
                 const p = PAGES.find(x => x.id === pid);
                 if (!p) return null;
                 const badge =
                   p.dot ? stats.unread :
                   pid === "library" ? (data.library_loans || []).filter(l => l.status === "overdue").length || null :
-                  pid === "tasks"   ? (data.tasks || []).filter(t => t.status === "todo").length || null : null;
+                  pid === "tasks"   ? (data.tasks || []).filter(tk => tk.status === "todo").length || null : null;
                 return (
-                  <button key={pid}
-                    className={`nm ${page === pid ? "on" : ""}`}
-                    onClick={() => nav(pid)}>
-                    <span className="nm-ico">{p.icon}</span>
+                  <button key={pid} className={`nm ${page === pid ? "on" : ""}`} onClick={() => nav(pid)}>
+                    <span className="nm-icon">{p.icon}</span>
                     <span className="nm-label">{t[p.key]}</span>
-                    {badge > 0 && <span className="nm-badge b">{badge}</span>}
+                    {badge > 0 && <span className={`nm-badge ${p.dot ? "" : "blue"}`}>{badge}</span>}
                   </button>
                 );
               })}
@@ -216,11 +214,11 @@ function AppInner() {
           ))}
         </nav>
 
-        <div className="sb-user">
+        <div className="sb-footer">
           <div className="sb-avatar">A</div>
-          <div className="sb-user-info">
-            <div className="sb-uname">{(data.settings || [])[0]?.center_name || "X-MASTER Pro"}</div>
-            <div className="sb-urole"><span className="online-dot" />Superadmin</div>
+          <div className="sb-footer-info">
+            <div className="sb-footer-name">{(data.settings || [])[0]?.center_name || "X-MASTER Pro"}</div>
+            <div className="sb-footer-role"><span className="online-dot" /> Superadmin</div>
           </div>
         </div>
       </aside>
@@ -229,32 +227,33 @@ function AppInner() {
       <main className="main">
         <header className="topbar">
           <div className="tb-left">
-            <div className="tb-title">{t[PAGES.find(x => x.id === page)?.key] || "Dashboard"}</div>
-            <div className="tb-breadcrumb">
-              <span>X-MASTER Pro</span><span className="tb-sep">›</span>
+            <div className="tb-page-title">{t[PAGES.find(x => x.id === page)?.key] || "Dashboard"}</div>
+            <div className="tb-crumb">
+              <span>X-MASTER Pro</span>
+              <span className="tb-crumb-sep">›</span>
               <span>{t[PAGES.find(x => x.id === page)?.key]}</span>
-              {lastSync && <><span className="tb-sep">·</span><span className="tb-sync">🕐 {fmtTime(lastSync)}</span></>}
+              {lastSync && <><span className="tb-crumb-sep">·</span><span>🕐 {fmtTime(lastSync)}</span></>}
             </div>
           </div>
           <div className="tb-right">
-            <button className="tb-icon-btn" onClick={loadAll}>
+            <button className="tb-icon-btn" onClick={loadAll} title="Yangilash">
               <span className={loading ? "spin" : ""}>↻</span>
             </button>
             <button className="tb-icon-btn" onClick={() => setTheme(v => v === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? "☀" : "☾"}
+              {theme === "dark" ? "☀️" : "🌙"}
             </button>
-            <select className="tb-chip lang-sel" value={lang} onChange={e => setLang(e.target.value)}>
+            <select className="lang-sel" value={lang} onChange={e => setLang(e.target.value)}>
               <option value="uz">🇺🇿 UZ</option>
               <option value="ru">🇷🇺 RU</option>
               <option value="en">🇬🇧 EN</option>
             </select>
-            <div className="tb-chip">
-              <span className="dot" />
-              <span>{(data.branches || [])[0]?.name || t.branch}</span>
+            <div className="tb-branch">
+              <span className="tb-branch-dot" />
+              <span>{(data.branches || [])[0]?.name || "Asosiy filial"}</span>
             </div>
             {stats.unread > 0 && (
-              <button className="tb-notif" onClick={() => { nav("dash"); setSub("notifications"); }}>
-                🔔<span className="tb-notif-badge">{stats.unread}</span>
+              <button className="tb-notif-btn" onClick={() => { nav("dash"); setSub("notifications"); }}>
+                🔔<span className="tb-notif-count">{stats.unread}</span>
               </button>
             )}
           </div>
@@ -310,8 +309,8 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
       {/* Toolbar */}
       <div className="page-toolbar" style={{ marginBottom: 16 }}>
         <div className="filter-tabs">
-          <button className={`filter-tab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>▤ Grid</button>
-          <button className={`filter-tab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>≡ Ro'yxat</button>
+          <button className={`ftab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>▤ Grid</button>
+          <button className={`ftab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>≡ Ro'yxat</button>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "group" })}>
           + Guruh qo'shish
@@ -547,8 +546,8 @@ function Leads({ t, rows, setModal, loadAll }) {
     <div className="page-enter">
       <div className="page-toolbar">
         <div className="filter-tabs">
-          <button className={`filter-tab ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>⬚ Kanban</button>
-          <button className={`filter-tab ${view === "list" ? "on" : ""}`}   onClick={() => setView("list")}>≡ Ro'yxat</button>
+          <button className={`ftab ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>⬚ Kanban</button>
+          <button className={`ftab ${view === "list" ? "on" : ""}`}   onClick={() => setView("list")}>≡ Ro'yxat</button>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "lead" })}>+ Yangi lid</button>
       </div>
@@ -659,7 +658,7 @@ function Grades({ t, data, setModal, loadAll }) {
       <div className="page-toolbar">
         <div className="filter-tabs">
           {[["all","Barchasi"],["homework","Uy vazifasi"],["test","Test"],["exam","Imtihon"]].map(([v, l]) => (
-            <button key={v} className={`filter-tab ${filter === v ? "on" : ""}`} onClick={() => setFilter(v)}>{l}</button>
+            <button key={v} className={`ftab ${filter === v ? "on" : ""}`} onClick={() => setFilter(v)}>{l}</button>
           ))}
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "grade" })}>+ Baho</button>
@@ -704,7 +703,7 @@ function Reports({ t, data, stats, sub, setSub }) {
       <div className="page-toolbar">
         <div className="filter-tabs">
           {[["home","Moliyaviy"],["growth","O'sish"],["attendance","Davomat"],["teachers","O'qituvchilar"]].map(([id, label]) => (
-            <button key={id} className={`filter-tab ${sub === id ? "on" : ""}`} onClick={() => setSub(id)}>{label}</button>
+            <button key={id} className={`ftab ${sub === id ? "on" : ""}`} onClick={() => setSub(id)}>{label}</button>
           ))}
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(data.payments, "hisobot")}>⇩ Excel</button>
@@ -1018,9 +1017,9 @@ function ModalForm({ modal, t, data, close, loadAll }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && close()}>
+    <div className="backdrop" onClick={e => e.target === e.currentTarget && close()}>
       <div className="modal modal-wide" role="dialog" aria-modal="true">
-        <div className="modal-hd">
+        <div className="modal-head">
           <b>{cfg.title}</b>
           <button className="modal-close" onClick={close} disabled={saving}>×</button>
         </div>
@@ -1044,7 +1043,7 @@ function ModalForm({ modal, t, data, close, loadAll }) {
             </label>
           ))}
         </div>
-        <div className="modal-ft">
+        <div className="modal-footer">
           <button className="btn btn-ghost" onClick={close} disabled={saving}>Bekor qilish</button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>
             {saving ? <><span className="spin-sm">⟳</span> Saqlanmoqda...</> : (isEdit ? "Yangilash" : "Saqlash")}
@@ -1071,9 +1070,9 @@ function DetailDrawer({ detail, t, data, close, setModal, loadAll }) {
     toast("Arxivlandi"); close(); loadAll();
   };
   return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && close()}>
+    <div className="backdrop" onClick={e => e.target === e.currentTarget && close()}>
       <div className="drawer">
-        <div className="modal-hd"><b>👤 Talaba profili</b><button className="modal-close" onClick={close}>×</button></div>
+        <div className="modal-head"><b>👤 Talaba profili</b><button className="modal-close" onClick={close}>×</button></div>
         <div className="drawer-body">
           <div className="profile-head">
             <Avatar name={r.full_name} size={52} />
