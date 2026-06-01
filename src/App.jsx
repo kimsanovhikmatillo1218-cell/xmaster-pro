@@ -1,11 +1,23 @@
-// X-MASTER Pro — Complete Education CRM
+// X-MASTER Pro — Premium Education CRM v3.0
 import {
   useCallback, useEffect, useMemo, useReducer, useRef, useState
 } from "react";
+import {
+  LayoutDashboard, Users, GraduationCap, UserCircle, CreditCard,
+  ClipboardCheck, Calendar, FileText, BookOpen, Star,
+  Library as LibraryIcon, FolderOpen, Target, CheckSquare,
+  BarChart3, Settings as SettingsIcon, Bell, Sun, Moon, RefreshCw,
+  Search, X, Building2, Shield,
+  Plus, Pencil, Trash2, LayoutGrid, List,
+  Clock, UserCircle2, BookMarked, MoreHorizontal,
+  TrendingUp, TrendingDown, ArrowRight, Eye,
+  CheckCircle2, XCircle, AlertCircle, Phone, Mail,
+  MapPin, Award, Layers, Save, ChevronRight, Download
+} from "lucide-react";
 import { supabase as db } from "./lib/supabase.js";
 import { getLang } from "./lib/i18n.js";
 import {
-  TABLES, ORDERED_TABLES, PAGES, LEAD_STAGES,
+  TABLES, ORDERED_TABLES, LEAD_STAGES,
   WEEK_DAYS, TIMES, EXPENSE_CATS, PAYMENT_METHODS,
   SALARY_TYPES, BOOK_CATS, RES_TYPES
 } from "./lib/constants.js";
@@ -32,6 +44,26 @@ import {
 } from "./components/ui/index.jsx";
 
 import "./index.css";
+
+/* ── Page definitions with Lucide icons ─────────────────────────── */
+const PAGES = [
+  { id:"dash",      key:"dashboard",  Icon:LayoutDashboard, group:"main" },
+  { id:"students",  key:"students",   Icon:Users,           group:"main" },
+  { id:"groups",    key:"groups",     Icon:GraduationCap,   group:"main" },
+  { id:"teachers",  key:"teachers",   Icon:UserCircle,      group:"main" },
+  { id:"finance",   key:"finance",    Icon:CreditCard,      group:"main" },
+  { id:"attend",    key:"attendance", Icon:ClipboardCheck,  group:"edu"  },
+  { id:"sched",     key:"schedule",   Icon:Calendar,        group:"edu"  },
+  { id:"tests",     key:"tests",      Icon:FileText,        group:"edu"  },
+  { id:"homework",  key:"homework",   Icon:BookOpen,        group:"edu"  },
+  { id:"grades",    key:"grades",     Icon:Star,            group:"edu"  },
+  { id:"library",   key:"library",    Icon:LibraryIcon,     group:"res"  },
+  { id:"resources", key:"resources",  Icon:FolderOpen,      group:"res"  },
+  { id:"leads",     key:"leads",      Icon:Target,          group:"crm", dot:true },
+  { id:"tasks",     key:"tasks",      Icon:CheckSquare,     group:"crm"  },
+  { id:"reports",   key:"reports",    Icon:BarChart3,       group:"sys"  },
+  { id:"settings",  key:"settings",   Icon:SettingsIcon,    group:"sys"  },
+];
 
 /* ── Data store ──────────────────────────────────────────────────── */
 const DEFAULT_DATA = Object.fromEntries(TABLES.map(t => [t, []]));
@@ -158,11 +190,12 @@ function AppInner() {
               const p = PAGES.find(x => x.id === pid);
               if (!p) return null;
               const badge = p.dot ? stats.unread : 0;
+              const IcoEl = p.Icon;
               return (
                 <button key={pid}
                   className={`ib-btn ${page === pid ? "on" : ""}`}
                   onClick={() => nav(pid)} title={t[p.key]}>
-                  <span className="ib-icon">{p.icon}</span>
+                  {IcoEl ? <IcoEl size={18} strokeWidth={page === pid ? 2.2 : 1.8} /> : null}
                   {badge > 0 && <span className="ib-dot" />}
                 </button>
               );
@@ -170,6 +203,9 @@ function AppInner() {
             <div className="ib-sep" />
           </div>
         ))}
+        <div className="ib-bottom">
+          <div className="ib-avatar">{((data.settings || [])[0]?.center_name || "X")[0].toUpperCase()}</div>
+        </div>
       </aside>
 
       {/* ── Sidebar ──────────────────────────────────────────────── */}
@@ -177,17 +213,17 @@ function AppInner() {
         <div className="sb-head">
           <div className="sb-brand">
             <div className="sb-logo">XM</div>
-            <div className="sb-brand-text">
+            <div>
               <div className="sb-name">X-MASTER Pro</div>
               <div className="sb-role">Education CRM</div>
             </div>
           </div>
           <label className="sb-search">
-            <span className="sb-search-icon">⌕</span>
+            <span className="sb-search-icon"><Search size={13} /></span>
             <input id="xm-search" value={query} onChange={e => setQuery(e.target.value)}
               placeholder={t.search} autoComplete="off" />
-            {query && <button className="sb-clear" onClick={() => setQuery("")}>×</button>}
-            <kbd className="sb-search-kbd">⌃K</kbd>
+            {query && <button className="sb-clear" onClick={() => setQuery("")}><X size={13} /></button>}
+            <kbd className="sb-search-kbd">⌘K</kbd>
           </label>
         </div>
 
@@ -198,13 +234,16 @@ function AppInner() {
               {grp.pages.map(pid => {
                 const p = PAGES.find(x => x.id === pid);
                 if (!p) return null;
+                const IcoEl = p.Icon;
                 const badge =
                   p.dot ? stats.unread :
                   pid === "library" ? (data.library_loans || []).filter(l => l.status === "overdue").length || null :
                   pid === "tasks"   ? (data.tasks || []).filter(tk => tk.status === "todo").length || null : null;
                 return (
                   <button key={pid} className={`nm ${page === pid ? "on" : ""}`} onClick={() => nav(pid)}>
-                    <span className="nm-icon">{p.icon}</span>
+                    <span className="nm-icon">
+                      {IcoEl ? <IcoEl size={15} strokeWidth={page === pid ? 2.2 : 1.8} /> : null}
+                    </span>
                     <span className="nm-txt">{t[p.key]}</span>
                     {badge > 0 && <span className={`nm-badge ${p.dot ? "" : "blue"}`}>{badge}</span>}
                   </button>
@@ -215,11 +254,14 @@ function AppInner() {
         </nav>
 
         <div className="sb-footer">
-          <div className="sb-avatar">A</div>
-          <div className="sb-footer-info">
+          <div className="sb-avatar">
+            {((data.settings || [])[0]?.center_name || "X")[0].toUpperCase()}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div className="sb-footer-name">{(data.settings || [])[0]?.center_name || "X-MASTER Pro"}</div>
             <div className="sb-footer-role"><span className="online-dot" /> Superadmin</div>
           </div>
+          <Shield size={14} style={{ color: "rgba(255,255,255,.25)", flexShrink: 0 }} />
         </div>
       </aside>
 
@@ -237,10 +279,11 @@ function AppInner() {
           </div>
           <div className="tb-right">
             <button className="tb-icon-btn" onClick={loadAll} title="Yangilash">
-              <span className={loading ? "spin" : ""}>↻</span>
+              <RefreshCw size={15} className={loading ? "spin" : ""} />
             </button>
-            <button className="tb-icon-btn" onClick={() => setTheme(v => v === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? "☀️" : "🌙"}
+            <button className="tb-icon-btn" onClick={() => setTheme(v => v === "dark" ? "light" : "dark")}
+              title={theme === "dark" ? "Yorug' rejim" : "Qorong'i rejim"}>
+              {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
             </button>
             <select className="lang-sel" value={lang} onChange={e => setLang(e.target.value)}>
               <option value="uz">🇺🇿 UZ</option>
@@ -249,13 +292,17 @@ function AppInner() {
             </select>
             <div className="tb-branch">
               <span className="tb-branch-dot" />
+              <Building2 size={12} style={{ color: "var(--t4)" }} />
               <span>{(data.branches || [])[0]?.name || "Asosiy filial"}</span>
             </div>
-            {stats.unread > 0 && (
-              <button className="tb-notif-btn" onClick={() => { nav("dash"); setSub("notifications"); }}>
-                🔔<span className="tb-notif-count">{stats.unread}</span>
-              </button>
-            )}
+            <button className="tb-notif-btn" onClick={() => { nav("dash"); setSub("notifications"); }}
+              title="Bildirishnomalar">
+              <Bell size={15} />
+              {stats.unread > 0 && <span className="tb-notif-count">{stats.unread}</span>}
+            </button>
+            <div className="tb-user" title="Profil">
+              {((data.settings || [])[0]?.center_name || "X")[0].toUpperCase()}
+            </div>
           </div>
         </header>
 
@@ -305,67 +352,77 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
   const safeRows = Array.isArray(rows) ? rows : [];
 
   return (
-    <div className="page-fade" style={{ minHeight: 200 }}>
-      {/* Toolbar */}
-      <div className="pg-toolbar" style={{ marginBottom: 16 }}>
-        <div className="tabs">
-          <button className={`ftab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>▤ Grid</button>
-          <button className={`ftab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>≡ Ro'yxat</button>
+    <div className="page-fade">
+      <div className="page-toolbar">
+        <div className="filter-tabs">
+          <button className={`filter-tab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>
+            <LayoutGrid size={12} /> Grid
+          </button>
+          <button className={`filter-tab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>
+            <List size={12} /> Ro'yxat
+          </button>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "group" })}>
-          + Guruh qo'shish
+          <Plus size={13} /> Guruh qo'shish
         </button>
       </div>
 
-      {/* Empty state */}
-      {safeRows.length === 0 && view === "grid" && (
-        <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🎓</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-strong)", marginBottom: 8 }}>
-            Guruhlar hali yo'q
-          </div>
-          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
-            Birinchi guruhingizni yarating
-          </div>
-          <button className="btn btn-primary" onClick={() => setModal({ type: "group" })}>
-            + Birinchi guruh qo'shish
-          </button>
-        </div>
+      {safeRows.length === 0 && (
+        <Empty text="Guruhlar hali yo'q" sub="Birinchi guruhingizni yarating"
+          action="+ Birinchi guruh" onAction={() => setModal({ type: "group" })} />
       )}
 
       {view === "grid" && safeRows.length > 0 ? (
         <div className="g3">
           {safeRows.map(g => {
             const count = (data?.students || []).filter(s => s.group_name === g.name).length;
-            const cap = Number(g.capacity || 15);
-            const pct = Math.min(100, Math.round(count / cap * 100));
+            const cap   = Number(g.capacity || 15);
+            const pct   = Math.min(100, Math.round(count / cap * 100));
             return (
               <div className="grp-card" key={g.id}>
                 <div className="grp-head">
                   <div>
                     <div className="grp-name">{g.name}</div>
-                    <div className="grp-teacher">{g.teacher_name || "—"} · {g.subject || "—"}</div>
+                    <div className="grp-teacher">
+                      <span style={{ display:"flex", alignItems:"center", gap:4, fontSize:12 }}>
+                        <UserCircle size={12} style={{ color:"var(--t4)" }} />
+                        {g.teacher_name || "—"} · {g.subject || "—"}
+                      </span>
+                    </div>
                   </div>
                   <Pill type={pct >= 100 ? "orange" : pct >= 80 ? "blue" : "green"}>
                     {pct >= 100 ? "To'lgan" : "Faol"}
                   </Pill>
                 </div>
-                <div className="grp-info">🕒 {g.schedule_text || "—"} · {money(g.price || 0)}</div>
-                <div className="grp-stat">
-                  <span>{count}/{cap} talaba</span>
-                  <span className={pct >= 80 ? "red" : "green"}>{pct}%</span>
+                <div className="grp-info" style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <Clock size={12} style={{ color:"var(--t4)", flexShrink:0 }} />
+                  {g.schedule_text || "—"} · {money(g.price || 0)}
                 </div>
-                <ProgressBar value={pct} />
+                <div className="grp-stat">
+                  <span style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <Users size={12} style={{ color:"var(--t4)" }} />
+                    {count}/{cap} talaba
+                  </span>
+                  <span style={{ fontWeight:700, color: pct >= 80 ? "var(--red)" : "var(--green)" }}>{pct}%</span>
+                </div>
+                <ProgressBar value={pct} color={pct >= 80 ? "red" : "green"} />
                 <div className="grp-actions">
-                  <button className="btn btn-primary btn-sm" onClick={() => nav("attend")}>Davomat</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "group", row: g })}>✎</button>
-                  <button className="btn btn-ghost btn-sm danger" onClick={() => remove(g.id)}>✕</button>
+                  <button className="btn btn-primary btn-sm" style={{ flex:1 }} onClick={() => nav("attend")}>
+                    <ClipboardCheck size={12} /> Davomat
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "group", row: g })}>
+                    <Pencil size={12} />
+                  </button>
+                  <button className="btn btn-ghost btn-sm danger" onClick={() => remove(g.id)}>
+                    <Trash2 size={12} />
+                  </button>
                 </div>
               </div>
             );
           })}
           <div className="group-card add-card" onClick={() => setModal({ type: "group" })} role="button" tabIndex={0}>
-            <span className="add-ico">＋</span><span>Yangi guruh</span>
+            <GraduationCap size={32} strokeWidth={1} style={{ color:"var(--t4)" }} />
+            <span style={{ fontSize:13.5, fontWeight:700 }}>Yangi guruh</span>
           </div>
         </div>
       ) : view === "list" ? (
@@ -376,21 +433,33 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
               {safeRows.map(g => {
                 const count = (data?.students || []).filter(s => s.group_name === g.name).length;
                 const cap   = Number(g.capacity || 15);
+                const pct   = Math.min(100, Math.round(count / cap * 100));
                 return (
                   <tr key={g.id} className="tbl-row">
-                    <td><b>{g.name}</b><br /><span className="c-muted" style={{ fontSize: 10 }}>{g.schedule_text}</span></td>
-                    <td>{g.teacher_name || "—"}</td>
-                    <td>{g.subject ? <Pill>{g.subject}</Pill> : "—"}</td>
-                    <td className="money">{money(g.price || 0)}</td>
-                    <td><ProgressBar value={Math.min(100, Math.round(count / cap * 100))} /><span style={{ fontSize: 10, color: "var(--muted)" }}>{count}/{cap}</span></td>
+                    <td>
+                      <div style={{ fontWeight:700, fontSize:13 }}>{g.name}</div>
+                      <div style={{ fontSize:11, color:"var(--t4)", marginTop:2 }}>{g.schedule_text}</div>
+                    </td>
+                    <td>
+                      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                        <UserCircle size={14} style={{ color:"var(--t4)", flexShrink:0 }} />
+                        {g.teacher_name || "—"}
+                      </div>
+                    </td>
+                    <td>{g.subject ? <Pill type="purple">{g.subject}</Pill> : "—"}</td>
+                    <td style={{ fontWeight:900, fontVariantNumeric:"tabular-nums", color:"var(--t1)" }}>{money(g.price || 0)}</td>
+                    <td style={{ width:120 }}>
+                      <ProgressBar value={pct} color={pct >= 80 ? "red" : "green"} />
+                      <div style={{ fontSize:10, color:"var(--t4)", marginTop:2 }}>{count}/{cap}</div>
+                    </td>
                     <td><div className="row-btns">
-                      <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "group", row: g })}>✎</button>
-                      <button className="btn btn-ghost btn-xs danger" onClick={() => remove(g.id)}>✕</button>
+                      <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "group", row: g })}><Pencil size={11} /></button>
+                      <button className="btn btn-ghost btn-xs danger" onClick={() => remove(g.id)}><Trash2 size={11} /></button>
                     </div></td>
                   </tr>
                 );
               })}
-              {!safeRows.length && <tr><td colSpan={6}><Empty text="Guruhlar yo'q" icon="🎓" onAction={() => setModal({ type: "group" })} action="+ Guruh qo'shish" /></td></tr>}
+              {!safeRows.length && <tr><td colSpan={6}><Empty text="Guruhlar yo'q" action="+ Guruh qo'shish" onAction={() => setModal({ type: "group" })} /></td></tr>}
             </tbody>
           </table>
         </Card>
@@ -409,7 +478,12 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
   };
   return (
     <div className="page-fade">
-      <div className="pg-toolbar"><div /><button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "teacher" })}>+ O'qituvchi</button></div>
+      <div className="page-toolbar">
+        <div />
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "teacher" })}>
+          <Plus size={13} /> O'qituvchi qo'shish
+        </button>
+      </div>
       <Card>
         <table className="tbl">
           <thead><tr><th>FISH</th><th>Telefon</th><th>Fan</th><th>Maosh turi</th><th>Maosh</th><th>Guruhlar</th><th>Holat</th><th>Amal</th></tr></thead>
@@ -421,18 +495,18 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
                   <td><Person name={r.full_name} sub={r.subject} /></td>
                   <td>{r.phone || "—"}</td>
                   <td>{r.subject ? <Pill>{r.subject}</Pill> : "—"}</td>
-                  <td className="c-muted">{r.salary_type || "—"}</td>
-                  <td className="money green">{money(r.salary_value)}</td>
-                  <td><span className="badge">{gc}</span></td>
+                  <td style={{ color:"var(--t3)", fontSize:12 }}>{r.salary_type || "—"}</td>
+                  <td style={{ fontWeight:900, color:"var(--green)", fontVariantNumeric:"tabular-nums" }}>{money(r.salary_value)}</td>
+                  <td><span className="badge" style={{ background:"var(--brand3)", color:"var(--brand)", borderColor:"var(--brand-brd)" }}>{gc}</span></td>
                   <td><StatusPill status={r.status || "active"} t={t} /></td>
                   <td><div className="row-btns">
-                    <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "teacher", row: r })}>✎</button>
-                    <button className="btn btn-ghost btn-xs danger" onClick={() => remove(r.id)}>✕</button>
+                    <button className="btn btn-ghost btn-xs" title="Tahrirlash" onClick={() => setModal({ type: "teacher", row: r })}><Pencil size={11} /></button>
+                    <button className="btn btn-ghost btn-xs danger" title="O'chirish" onClick={() => remove(r.id)}><Trash2 size={11} /></button>
                   </div></td>
                 </tr>
               );
             })}
-            {!rows.length && <tr><td colSpan={8}><Empty text="O'qituvchilar yo'q" icon="🧑‍🏫" /></td></tr>}
+            {!rows.length && <tr><td colSpan={8}><Empty text="O'qituvchilar yo'q" sub="Yangi o'qituvchi qo'shing" action="+ O'qituvchi" onAction={() => setModal({ type: "teacher" })} /></td></tr>}
           </tbody>
         </table>
       </Card>
@@ -503,9 +577,13 @@ function Schedule({ data, setModal }) {
   const colorMap  = useMemo(() => Object.fromEntries(allGroups.map((g, i) => [g, COLORS[i % COLORS.length]])), [allGroups]);
   return (
     <div className="page-fade">
-      <div className="pg-toolbar">
-        <b style={{ fontWeight: 900, fontSize: 14 }}>📅 Haftalik jadval</b>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "schedule" })}>+ Dars qo'shish</button>
+      <div className="page-toolbar">
+        <div style={{ display:"flex", alignItems:"center", gap:8, fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:15, color:"var(--t1)" }}>
+          <Calendar size={16} style={{ color:"var(--brand)" }} /> Haftalik jadval
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "schedule" })}>
+          <Plus size={13} /> Dars qo'shish
+        </button>
       </div>
       <Card className="pad">
         <div style={{ overflowX: "auto" }}>
@@ -544,33 +622,50 @@ function Leads({ t, rows, setModal, loadAll }) {
   };
   return (
     <div className="page-fade">
-      <div className="pg-toolbar">
-        <div className="tabs">
-          <button className={`ftab ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>⬚ Kanban</button>
-          <button className={`ftab ${view === "list" ? "on" : ""}`}   onClick={() => setView("list")}>≡ Ro'yxat</button>
+      <div className="page-toolbar">
+        <div className="filter-tabs">
+          <button className={`filter-tab ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>
+            <Layers size={12} /> Kanban
+          </button>
+          <button className={`filter-tab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>
+            <List size={12} /> Ro'yxat
+          </button>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "lead" })}>+ Yangi lid</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "lead" })}>
+          <Plus size={13} /> Yangi lid
+        </button>
       </div>
       {view === "kanban" ? (
         <div className="kanban">
           {LEAD_STAGES.map(({ id: st, label, color }) => (
             <div className="kb-col" key={st}>
-              <div className={`kb-hd kb-hd-${color}`}>
+              <div className={`kb-hd ${color}`}>
                 <span>{label}</span>
-                <span className={`pill pill-${color}`}>{rows.filter(x => x.stage === st).length}</span>
+                <span className={`pill pill-${color}`} style={{ fontSize:10 }}>{rows.filter(x => x.stage === st).length}</span>
               </div>
               <div className="kb-list">
                 {rows.filter(x => x.stage === st).map(l => (
                   <div className="kb-card" key={l.id}>
                     <div className="kb-name">{l.full_name}</div>
-                    <div className="kb-meta">📞 {l.phone || "—"}{l.source && ` · ${l.source}`}</div>
-                    {l.interested_course && <div className="kb-course">📚 {l.interested_course}</div>}
+                    <div className="kb-meta" style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <Phone size={10} style={{ color:"var(--t4)", flexShrink:0 }} />
+                      {l.phone || "—"}{l.source && ` · ${l.source}`}
+                    </div>
+                    {l.interested_course && (
+                      <div className="kb-course" style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <BookOpen size={10} style={{ flexShrink:0 }} /> {l.interested_course}
+                      </div>
+                    )}
                     <div className="kb-moves">
                       {LEAD_STAGES.filter(s => s.id !== st).slice(0, 3).map(s => (
-                        <button key={s.id} className="kb-move" onClick={() => move(l.id, s.id)}>→ {s.label.slice(0, 7)}</button>
+                        <button key={s.id} className="kb-move"
+                          style={{ display:"flex", alignItems:"center", gap:3 }}
+                          onClick={() => move(l.id, s.id)}>
+                          <ArrowRight size={8} /> {s.label.slice(0, 8)}
+                        </button>
                       ))}
                     </div>
-                    <button className="kb-del" onClick={() => remove(l.id)}>✕</button>
+                    <button className="kb-del" onClick={() => remove(l.id)}><Trash2 size={10} /></button>
                   </div>
                 ))}
                 {!rows.filter(x => x.stage === st).length && <div className="kb-empty">Bo'sh</div>}
@@ -814,46 +909,149 @@ function Reports({ t, data, stats, sub, setSub }) {
 function Settings({ t, data, setModal, loadAll }) {
   const toast = useToast();
   const s = (data.settings || [])[0] || {};
-  const [form, setFormData] = useState({ center_name: s.center_name || "X-MASTER Pro", phone: s.phone || "", address: s.address || "" });
+  const [form, setFormData] = useState({
+    center_name: s.center_name || "X-MASTER Pro",
+    phone: s.phone || "",
+    address: s.address || ""
+  });
   const [saving, setSaving] = useState(false);
   const save = async () => {
     setSaving(true);
-    const op = s.id ? db.from("settings").update(form).eq("id", s.id) : db.from("settings").insert(form);
+    const op = s.id
+      ? db.from("settings").update(form).eq("id", s.id)
+      : db.from("settings").insert(form);
     const { error } = await op;
     setSaving(false);
     if (error) return toast(error.message, "error");
     toast("Sozlamalar saqlandi"); loadAll();
   };
+
+  const SETTING_FIELDS = [
+    { k: "center_name", label: "Markaz nomi",   Icon: Building2  },
+    { k: "phone",       label: "Telefon raqami", Icon: Phone      },
+    { k: "address",     label: "Manzil",         Icon: MapPin     },
+  ];
+
+  const ROLES = [
+    { role:"Superadmin",  desc:"Barcha funksiyalar",   tone:"green",  Icon: Shield    },
+    { role:"Admin",       desc:"Asosiy funksiyalar",    tone:"blue",   Icon: UserCircle},
+    { role:"O'qituvchi",  desc:"Davomat va jadval",     tone:"orange", Icon: GraduationCap },
+    { role:"Kassa",       desc:"Moliya bo'limi",        tone:"purple", Icon: CreditCard},
+  ];
+
+  const STATS_DATA = [
+    ["Talabalar",   (data.students||[]).length,      "var(--brand)"],
+    ["Guruhlar",    (data.study_groups||[]).length,   "var(--purple)"],
+    ["O'qituvchilar",(data.teachers||[]).length,     "var(--cyan)"],
+    ["To'lovlar",   (data.payments||[]).length,       "var(--green)"],
+    ["Davomat",     (data.attendance||[]).length,     "var(--yellow)"],
+    ["Lidlar",      (data.leads||[]).length,          "var(--orange)"],
+    ["Testlar",     (data.tests||[]).length,          "var(--red)"],
+    ["Kitoblar",    (data.library_books||[]).length,  "var(--teal)"],
+    ["Resurslar",   (data.resources||[]).length,      "var(--indigo)"],
+    ["Vazifalar",   (data.tasks||[]).length,          "var(--pink)"],
+  ];
+
   return (
     <div className="page-enter grid2">
+      {/* Markaz ma'lumoti */}
       <Card className="pad">
-        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 14 }}>🏫 Markaz ma'lumoti</div>
-        {[["center_name","Markaz nomi"],["phone","Telefon"],["address","Manzil"]].map(([k, label]) => (
-          <label key={k} style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 10 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-sub)" }}>{label}</span>
-            <input type="text" value={form[k] || ""} onChange={e => setFormData(f => ({ ...f, [k]: e.target.value }))} placeholder={label} />
+        <div className="card-hd" style={{ marginBottom:18 }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:32, height:32, borderRadius:9, background:"#eff6ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <Building2 size={15} strokeWidth={1.75} style={{ color:"var(--brand)" }} />
+              </div>
+              <div className="card-title">Markaz ma'lumoti</div>
+            </div>
+          </div>
+        </div>
+        {SETTING_FIELDS.map(({ k, label, Icon: I }) => (
+          <label key={k} style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:12 }}>
+            <span style={{ fontSize:12, fontWeight:600, color:"var(--t3)", display:"flex", alignItems:"center", gap:5 }}>
+              <I size={12} style={{ color:"var(--t4)" }} /> {label}
+            </span>
+            <input type="text" value={form[k] || ""} placeholder={label}
+              onChange={e => setFormData(f => ({ ...f, [k]: e.target.value }))} />
           </label>
         ))}
-        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "⟳ Saqlanmoqda..." : "Saqlash"}</button>
+        <button className="btn btn-primary" style={{ width:"100%", marginTop:4 }}
+          onClick={save} disabled={saving}>
+          {saving
+            ? <><RefreshCw size={13} className="spin" /> Saqlanmoqda...</>
+            : <><Save size={13} /> Saqlash</>}
+        </button>
       </Card>
+
+      {/* Filiallar */}
       <Card className="pad">
-        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 14 }}>🏢 Filiallar</div>
-        {(data.branches || []).map(b => <div key={b.id} className="line"><span>{b.name}</span><b>{b.address || "—"}</b></div>)}
+        <div className="card-hd" style={{ marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:32, height:32, borderRadius:9, background:"#f0fdf4", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Building2 size={15} strokeWidth={1.75} style={{ color:"var(--green)" }} />
+            </div>
+            <div className="card-title">Filiallar</div>
+          </div>
+        </div>
+        {(data.branches || []).map(b => (
+          <div key={b.id} className="line">
+            <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <MapPin size={11} style={{ color:"var(--t4)" }} /> {b.name}
+            </span>
+            <b style={{ fontSize:12 }}>{b.address || "—"}</b>
+          </div>
+        ))}
         {!data.branches?.length && <Empty text="Filiallar yo'q" />}
-        <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={() => setModal({ type: "branch" })}>+ Filial</button>
+        <button className="btn btn-primary btn-sm" style={{ marginTop:14, width:"100%" }}
+          onClick={() => setModal({ type: "branch" })}>
+          <Plus size={12} /> Filial qo'shish
+        </button>
       </Card>
+
+      {/* Rollar */}
       <Card className="pad">
-        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 14 }}>🔐 Rollar</div>
-        {[["Superadmin","Barcha funksiyalar","green"],["Admin","Asosiy funksiyalar","blue"],["O'qituvchi","Davomat va jadval","orange"],["Kassa","Moliya","purple"]].map(([role, desc, tone]) => (
-          <div key={role} className="line">
-            <div><div style={{ fontWeight: 800, fontSize: 12 }}>{role}</div><div style={{ fontSize: 10, color: "var(--muted)" }}>{desc}</div></div>
+        <div className="card-hd" style={{ marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:32, height:32, borderRadius:9, background:"#f5f3ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Shield size={15} strokeWidth={1.75} style={{ color:"var(--purple)" }} />
+            </div>
+            <div className="card-title">Rollar / Ruxsatlar</div>
+          </div>
+        </div>
+        {ROLES.map(({ role, desc, tone, Icon: I }) => (
+          <div key={role} className="line" style={{ alignItems:"center" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+              <div style={{ width:30, height:30, borderRadius:8, background:"var(--card2)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <I size={13} strokeWidth={1.75} style={{ color:"var(--t3)" }} />
+              </div>
+              <div>
+                <div style={{ fontWeight:800, fontSize:12.5, color:"var(--t1)" }}>{role}</div>
+                <div style={{ fontSize:10.5, color:"var(--t4)" }}>{desc}</div>
+              </div>
+            </div>
             <Pill type={tone}>Faol</Pill>
           </div>
         ))}
       </Card>
+
+      {/* Statistika */}
       <Card className="pad">
-        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 14 }}>📊 Statistika</div>
-        {[["Talabalar",(data.students||[]).length],["Guruhlar",(data.study_groups||[]).length],["O'qituvchilar",(data.teachers||[]).length],["To'lovlar",(data.payments||[]).length],["Davomat",(data.attendance||[]).length],["Lidlar",(data.leads||[]).length],["Testlar",(data.tests||[]).length],["Kitoblar",(data.library_books||[]).length],["Resurslar",(data.resources||[]).length],["Vazifalar",(data.tasks||[]).length]].map(([l, r]) => <div key={l} className="line"><span>{l}</span><b>{r}</b></div>)}
+        <div className="card-hd" style={{ marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:32, height:32, borderRadius:9, background:"#eff6ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <BarChart3 size={15} strokeWidth={1.75} style={{ color:"var(--brand)" }} />
+            </div>
+            <div className="card-title">Tizim statistikasi</div>
+          </div>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+          {STATS_DATA.map(([label, val, color]) => (
+            <div key={label} style={{ background:"var(--card2)", border:"1px solid var(--line)", borderRadius:10, padding:"10px 12px" }}>
+              <div style={{ fontSize:18, fontWeight:900, color, fontFamily:"'Plus Jakarta Sans',sans-serif", letterSpacing:"-.3px" }}>{val}</div>
+              <div style={{ fontSize:11, color:"var(--t4)", marginTop:2, fontWeight:500 }}>{label}</div>
+            </div>
+          ))}
+        </div>
       </Card>
     </div>
   );
@@ -1044,9 +1242,15 @@ function ModalForm({ modal, t, data, close, loadAll }) {
           ))}
         </div>
         <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={close} disabled={saving}>Bekor qilish</button>
+          <button className="btn btn-ghost" onClick={close} disabled={saving}>
+            <X size={13} /> Bekor qilish
+          </button>
           <button className="btn btn-primary" onClick={submit} disabled={saving}>
-            {saving ? <><span className="spin-sm">⟳</span> Saqlanmoqda...</> : (isEdit ? "Yangilash" : "Saqlash")}
+            {saving
+              ? <><RefreshCw size={13} className="spin" /> Saqlanmoqda...</>
+              : isEdit
+                ? <><Pencil size={13} /> Yangilash</>
+                : <><Save size={13} /> Saqlash</>}
           </button>
         </div>
       </div>
@@ -1069,52 +1273,95 @@ function DetailDrawer({ detail, t, data, close, setModal, loadAll }) {
     if (error) return toast(error.message, "error");
     toast("Arxivlandi"); close(); loadAll();
   };
+
+  const INFO_ROWS = [
+    { l:"Telefon",    v:r.phone,        Icon: Phone       },
+    { l:"Ota-ona",    v:r.parent_phone, Icon: Phone       },
+    { l:"Guruh",      v:r.group_name,   Icon: GraduationCap},
+    { l:"Holat",      v:<StatusPill key="s" status={r.status||"active"} t={t}/>, Icon: CheckCircle2 },
+    { l:"Davomat",    v:<span key="a" style={{fontWeight:700,color:rate>75?"var(--green)":"var(--red)"}}>{rate}% ({attRows.length} dars)</span>, Icon: ClipboardCheck },
+  ];
+
   return (
     <div className="backdrop" onClick={e => e.target === e.currentTarget && close()}>
       <div className="drawer">
-        <div className="modal-head"><b>👤 Talaba profili</b><button className="m-close" onClick={close}>×</button></div>
+        <div className="modal-head">
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <UserCircle size={18} strokeWidth={1.75} style={{ color:"var(--brand)" }} />
+            <b>Talaba profili</b>
+          </div>
+          <button className="m-close" onClick={close}><X size={14} /></button>
+        </div>
         <div className="drawer-body">
           <div className="profile-head">
-            <Avatar name={r.full_name} size={52} />
+            <Avatar name={r.full_name} size={50} />
             <div className="profile-info">
               <div className="profile-name">{r.full_name}</div>
-              <div className="profile-phone">{r.phone || "—"}</div>
+              <div className="profile-phone" style={{ display:"flex", alignItems:"center", gap:4 }}>
+                <Phone size={11} style={{ color:"var(--t4)" }} /> {r.phone || "—"}
+              </div>
             </div>
             <Pill type={Number(r.balance || 0) < 0 ? "red" : "green"}>{money(r.balance)}</Pill>
           </div>
           <div className="drawer-section">
-            {[["Telefon",r.phone],["Ota-ona",r.parent_phone],["Guruh",r.group_name],["Holat",<StatusPill key="s" status={r.status||"active"} t={t}/>],["Davomat",<span key="a" style={{color:rate>75?"var(--success)":"var(--danger)"}}>{rate}% ({attRows.length} dars)</span>]].map(([l, rv]) => (
-              <div key={l} className="line"><span>{l}</span><b>{rv == null || rv === "" ? "—" : rv}</b></div>
+            {INFO_ROWS.map(({ l, v, Icon: I }) => (
+              <div key={l} className="line">
+                <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <I size={12} style={{ color:"var(--t4)", flexShrink:0 }} /> {l}
+                </span>
+                <b style={{ fontSize:12 }}>{v == null || v === "" ? "—" : v}</b>
+              </div>
             ))}
           </div>
           <div className="drawer-section">
-            <div className="drawer-section-title">💳 To'lovlar</div>
+            <div className="drawer-section-title" style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <CreditCard size={11} style={{ color:"var(--brand)" }} /> To'lovlar
+            </div>
             {payments.slice(0, 5).map(p => (
               <div key={p.id} className="fin-row">
-                <div className="fin-name"><b style={{ color: "var(--success)" }}>+{money(p.amount)}</b><small>{fmtFull(p.created_at)}</small></div>
+                <Avatar name={p.student_name} size={28} />
+                <div className="fin-name">
+                  <b style={{ color:"var(--green)", fontSize:13 }}>+{money(p.amount)}</b>
+                  <small style={{ color:"var(--t4)", fontSize:10.5 }}>{fmtFull(p.created_at)}</small>
+                </div>
                 <MethodBadge method={p.method} />
               </div>
             ))}
             {!payments.length && <Empty text="To'lovlar yo'q" />}
           </div>
           <div className="drawer-section">
-            <div className="drawer-section-title">⭐ Baholar</div>
-            {grades.slice(0, 5).map(g => (
-              <div key={g.id} className="line">
-                <span>{g.subject || g.grade_type}</span>
-                <b style={{ color: Number(g.score) / Number(g.max_score || 10) >= 0.8 ? "var(--success)" : "var(--danger)" }}>{g.score}/{g.max_score || 10}</b>
-              </div>
-            ))}
+            <div className="drawer-section-title" style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <Star size={11} style={{ color:"var(--yellow)" }} /> Baholar
+            </div>
+            {grades.slice(0, 5).map(g => {
+              const pct = Number(g.score) / Number(g.max_score || 10);
+              return (
+                <div key={g.id} className="line">
+                  <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                    <Award size={11} style={{ color:"var(--t4)" }} />
+                    {g.subject || g.grade_type}
+                  </span>
+                  <b style={{ color: pct >= 0.8 ? "var(--green)" : pct >= 0.6 ? "var(--yellow)" : "var(--red)" }}>
+                    {g.score}/{g.max_score || 10}
+                  </b>
+                </div>
+              );
+            })}
             {!grades.length && <Empty text="Baholar yo'q" />}
           </div>
         </div>
         <div className="drawer-footer">
-          <button className="btn btn-primary" style={{ flex: 1 }}
-            onClick={() => { setModal({ type: "payment", row: { student_name: r.full_name, group_name: r.group_name } }); close(); }}>
-            + To'lov
+          <button className="btn btn-primary" style={{ flex:1 }}
+            onClick={() => { setModal({ type:"payment", row:{ student_name:r.full_name, group_name:r.group_name } }); close(); }}>
+            <CreditCard size={13} /> To'lov
           </button>
-          <button className="btn btn-ghost" onClick={() => { setModal({ type: "student", row: r }); close(); }}>✎</button>
-          <button className="btn btn-ghost danger" onClick={archive}>Arxiv</button>
+          <button className="btn btn-ghost"
+            onClick={() => { setModal({ type:"student", row:r }); close(); }}>
+            <Pencil size={13} />
+          </button>
+          <button className="btn btn-ghost danger" onClick={archive}>
+            <Trash2 size={13} /> Arxiv
+          </button>
         </div>
       </div>
     </div>

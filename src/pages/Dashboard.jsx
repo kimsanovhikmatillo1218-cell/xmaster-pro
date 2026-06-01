@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
 import {
+  Users, DollarSign, GraduationCap, ClipboardCheck,
+  TrendingUp, TrendingDown, CreditCard, Zap, Bell,
+  BookOpen, Target, FileText, BarChart2, ArrowRight, CheckCircle2
+} from "lucide-react";
+import {
   StatCard, Card, CardHd, SectionHeader, Mini, FinanceLine,
   GroupLine, Notice, ProgressBar, Pill, Empty, FinanceHeroCard,
   Avatar, BarChart, LineChart, DonutChart, Sparkline
@@ -46,23 +51,25 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
         {/* Faol talabalar */}
         <div className="kpi kpi-blue click" onClick={() => nav("students")}>
           <div className="kpi-top">
-            <div className="kpi-icon">👥</div>
-            <div className="kpi-trend-chip up">↑ {newLeads} yangi</div>
+            <div className="kpi-icon"><Users size={20} strokeWidth={1.75} /></div>
+            <div className="kpi-trend-chip up"><TrendingUp size={10} /> {newLeads} yangi</div>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
             <div>
               <div className="kpi-val">{stats.active}</div>
               <div className="kpi-label">Faol talabalar</div>
             </div>
-            <Sparkline data={stdSpark} color="#3b82f6" />
+            <Sparkline data={stdSpark} color="#4f6ef7" />
           </div>
         </div>
 
         {/* Daromad */}
         <div className="kpi kpi-green click" onClick={() => nav("finance")}>
           <div className="kpi-top">
-            <div className="kpi-icon">💰</div>
-            <div className={`kpi-trend-chip ${profitUp ? "up" : "down"}`}>{profitUp ? "↑" : "↓"} {short(Math.abs(profit))}</div>
+            <div className="kpi-icon"><DollarSign size={20} strokeWidth={1.75} /></div>
+            <div className={`kpi-trend-chip ${profitUp ? "up" : "down"}`}>
+              {profitUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />} {short(Math.abs(profit))}
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
             <div>
@@ -76,7 +83,7 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
         {/* Guruhlar */}
         <div className="kpi kpi-purple click" onClick={() => nav("groups")}>
           <div className="kpi-top">
-            <div className="kpi-icon">🎓</div>
+            <div className="kpi-icon"><GraduationCap size={20} strokeWidth={1.75} /></div>
             <div className="kpi-trend-chip neutral">{stats.teachers} o'qituvchi</div>
           </div>
           <div className="kpi-val">{stats.groups}</div>
@@ -89,9 +96,9 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
         {/* Davomat */}
         <div className="kpi kpi-orange click" onClick={() => nav("attend")}>
           <div className="kpi-top">
-            <div className="kpi-icon">✅</div>
+            <div className="kpi-icon"><ClipboardCheck size={20} strokeWidth={1.75} /></div>
             <div className={`kpi-trend-chip ${recentAtt >= 75 ? "up" : "down"}`}>
-              {recentAtt >= 75 ? "↑" : "↓"} {recentAtt}%
+              {recentAtt >= 75 ? <TrendingUp size={10} /> : <TrendingDown size={10} />} {recentAtt}%
             </div>
           </div>
           <div className="kpi-val">{recentAtt}%</div>
@@ -111,10 +118,12 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
           {/* Finance overview */}
           <Card>
             <div style={{ padding: "18px 20px 0" }}>
-              <CardHd title="💰 Moliyaviy ko'rinish" sub="So'nggi oylar"
+              <CardHd
+                title={<span style={{ display:"flex", alignItems:"center", gap:7 }}><TrendingUp size={16} strokeWidth={1.75} style={{ color:"var(--green)" }} />Moliyaviy ko'rinish</span>}
+                sub="So'nggi oylar"
                 right={
                   <div style={{ display: "flex", gap: 14, fontSize: 11, color: "var(--t4)" }}>
-                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#3b82f6", marginRight: 4 }} />Daromad</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#4f6ef7", marginRight: 4 }} />Daromad</span>
                     <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#ef4444", marginRight: 4 }} />Xarajat</span>
                   </div>
                 }
@@ -128,8 +137,9 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
           {/* Recent payments */}
           <Card>
             <div style={{ padding: "18px 20px 0" }}>
-              <CardHd title="💳 So'nggi to'lovlar"
-                right={<button className="btn btn-ghost btn-sm" onClick={() => nav("finance")}>Barchasi →</button>}
+              <CardHd
+                title={<span style={{ display:"flex", alignItems:"center", gap:7 }}><CreditCard size={16} strokeWidth={1.75} style={{ color:"var(--brand)" }} />So'nggi to'lovlar</span>}
+                right={<button className="btn btn-ghost btn-sm" onClick={() => nav("finance")}>Barchasi <ArrowRight size={12} style={{ display:"inline" }} /></button>}
               />
             </div>
             {(data.payments || []).slice(0, 6).map(p => (
@@ -147,7 +157,7 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
 
           {/* Attendance donut + group status */}
           <Card className="card-p">
-            <CardHd title="📊 Statistika" />
+            <CardHd title={<span style={{ display:"flex", alignItems:"center", gap:7 }}><BarChart2 size={16} strokeWidth={1.75} style={{ color:"var(--purple)" }} />Statistika</span>} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 16 }}>
               <div style={{ textAlign: "center" }}>
                 <DonutChart value={recentAtt} max={100} color="#10b981" size={80} label="Davomat" />
@@ -184,8 +194,9 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
           {/* Groups status */}
           <Card>
             <div style={{ padding: "18px 20px 0" }}>
-              <CardHd title="🎓 Guruhlar holati"
-                right={<button className="btn btn-ghost btn-sm" onClick={() => nav("groups")}>Barchasi →</button>}
+              <CardHd
+                title={<span style={{ display:"flex", alignItems:"center", gap:7 }}><GraduationCap size={16} strokeWidth={1.75} style={{ color:"var(--purple)" }} />Guruhlar holati</span>}
+                right={<button className="btn btn-ghost btn-sm" onClick={() => nav("groups")}>Barchasi <ArrowRight size={12} style={{ display:"inline" }} /></button>}
               />
             </div>
             {(data.study_groups || []).slice(0, 4).map(g => (
@@ -198,20 +209,22 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
 
           {/* Quick actions */}
           <Card className="card-ps">
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t4)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>
-              ⚡ Tezkor amallar
+            <div style={{ display:"flex", alignItems:"center", gap:6, fontSize: 11, fontWeight: 700, color: "var(--t4)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>
+              <Zap size={12} /> Tezkor amallar
             </div>
             <div className="qa-grid">
               {[
-                { icon: "💳", label: "To'lov qabul",    bg: "#ecfdf5", modal: { type: "payment" } },
-                { icon: "👤", label: "Talaba qo'shish",  bg: "#eff6ff", modal: { type: "student" } },
-                { icon: "📣", label: "Lid qo'shish",     bg: "#f5f3ff", modal: { type: "lead" } },
-                { icon: "💸", label: "Xarajat kiritish", bg: "#fef2f2", modal: { type: "expense" } },
-                { icon: "📝", label: "Test yaratish",    bg: "#fff7ed", modal: { type: "test" } },
-                { icon: "📖", label: "Kitob qo'shish",   bg: "#ecfeff", modal: { type: "book" } },
+                { Icon: CreditCard,   label: "To'lov qabul",    bg: "#ecfdf5", color:"#059669", modal: { type: "payment" } },
+                { Icon: Users,        label: "Talaba qo'shish",  bg: "#eff6ff", color:"#4f6ef7", modal: { type: "student" } },
+                { Icon: Target,       label: "Lid qo'shish",     bg: "#f5f3ff", color:"#7c3aed", modal: { type: "lead" } },
+                { Icon: TrendingDown, label: "Xarajat kiritish", bg: "#fef2f2", color:"#dc2626", modal: { type: "expense" } },
+                { Icon: FileText,     label: "Test yaratish",    bg: "#fff7ed", color:"#c2410c", modal: { type: "test" } },
+                { Icon: BookOpen,     label: "Kitob qo'shish",   bg: "#ecfeff", color:"#0e7490", modal: { type: "book" } },
               ].map(a => (
                 <button key={a.label} className="qa-btn" onClick={() => setModal(a.modal)}>
-                  <span className="qa-ico" style={{ background: a.bg }}>{a.icon}</span>
+                  <span className="qa-ico" style={{ background: a.bg }}>
+                    <a.Icon size={15} strokeWidth={1.75} style={{ color: a.color }} />
+                  </span>
                   <span style={{ fontSize: 12.5 }}>{a.label}</span>
                 </button>
               ))}
@@ -224,11 +237,16 @@ export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, 
       <div style={{ marginTop: 18 }}>
         <Card>
           <div style={{ padding: "16px 20px 0" }}>
-            <CardHd title="🔔 Bildirishnomalar"
+            <CardHd
+              title={<span style={{ display:"flex", alignItems:"center", gap:7 }}><Bell size={16} strokeWidth={1.75} style={{ color:"var(--yellow)" }} />Bildirishnomalar</span>}
               right={
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-ghost btn-sm" onClick={markAllRead}>✓ O'qildi</button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { nav("dash"); setSub("notifications"); }}>Barchasi →</button>
+                  <button className="btn btn-ghost btn-sm" onClick={markAllRead}>
+                    <CheckCircle2 size={12} /> O'qildi
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { nav("dash"); setSub("notifications"); }}>
+                    Barchasi <ArrowRight size={12} style={{ display:"inline" }} />
+                  </button>
                 </div>
               }
             />

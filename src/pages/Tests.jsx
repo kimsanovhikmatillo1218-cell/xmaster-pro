@@ -1,4 +1,9 @@
 import { useMemo, useState } from "react";
+import {
+  Plus, List, BarChart2, FileText, Pencil, Trash2,
+  Clock, Users, ArrowLeft, CheckCircle, XCircle,
+  Award, Calendar, Target, TrendingUp
+} from "lucide-react";
 import { supabase as db } from "../lib/supabase.js";
 import { Card, Pill, Person, Empty, SectionHeader, StatusPill, useToast, useConfirm } from "../components/ui/index.jsx";
 import { fmtDate, fmtFull } from "../lib/utils.js";
@@ -34,87 +39,146 @@ export default function Tests({ t, data, setModal, loadAll }) {
     <div className="page-enter">
       <div className="page-toolbar">
         <div className="filter-tabs">
-          <button className={`filter-tab ${view==="list"?"on":""}`} onClick={()=>setView("list")}>📋 Ro'yxat</button>
-          <button className={`filter-tab ${view==="results"?"on":""}`} onClick={()=>setView("results")}>📊 Natijalar</button>
+          <button className={`filter-tab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>
+            <List size={12} /> Ro'yxat <span className="filter-count">{tests.length}</span>
+          </button>
+          <button className={`filter-tab ${view === "results" ? "on" : ""}`} onClick={() => setView("results")}>
+            <BarChart2 size={12} /> Natijalar <span className="filter-count">{(data.test_results||[]).length}</span>
+          </button>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"test"})}>
-          {t.addTest}
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "test" })}>
+          <Plus size={13} /> {t.addTest}
         </button>
       </div>
 
       {view==="list"&&(
-        <div className="grid3">
-          {tests.map(test=>{
-            const resCount = results.filter(r=>r.test_id===test.id).length;
+        <div className="g3">
+          {tests.map(test => {
+            const resCount = results.filter(r => r.test_id === test.id).length;
             const avgScore = resCount
-              ? Math.round(results.filter(r=>r.test_id===test.id).reduce((a,r)=>a+Number(r.score||0),0)/resCount)
+              ? Math.round(results.filter(r => r.test_id === test.id).reduce((a, r) => a + Number(r.score || 0), 0) / resCount)
               : null;
-            const qCount = (data.test_questions||[]).filter(q=>q.test_id===test.id).length;
+            const qCount = (data.test_questions || []).filter(q => q.test_id === test.id).length;
             return (
               <div key={test.id} className="test-card">
-                <div className="test-title">{test.title}</div>
-                <div className="test-meta">
-                  {test.subject&&<span>📚 {test.subject}</span>}
-                  {test.group_name&&<span>👥 {test.group_name}</span>}
-                  {test.test_date&&<span>📅 {fmtDate(test.test_date)}</span>}
-                  <span>⏱ {test.duration} daq</span>
-                  <span>❓ {qCount} savol</span>
+                {/* Header */}
+                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:"#eff6ff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <FileText size={16} strokeWidth={1.75} style={{ color:"var(--brand)" }} />
+                  </div>
+                  <StatusPill status={test.status} t={t} />
                 </div>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                  <StatusPill status={test.status} t={t}/>
-                  <div style={{fontSize:11,color:"var(--text-sub)"}}>
-                    O'tish: <b>{test.pass_marks||60}/{test.total_marks||100}</b>
+                <div className="test-title" style={{ marginTop:8 }}>{test.title}</div>
+                <div className="test-meta" style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                  {test.subject && (
+                    <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <Target size={10} style={{ color:"var(--t4)" }} /> {test.subject}
+                    </span>
+                  )}
+                  {test.group_name && (
+                    <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                      <Users size={10} style={{ color:"var(--t4)" }} /> {test.group_name}
+                    </span>
+                  )}
+                  <div style={{ display:"flex", gap:12 }}>
+                    {test.test_date && (
+                      <span style={{ display:"flex", alignItems:"center", gap:4 }}>
+                        <Calendar size={10} style={{ color:"var(--t4)" }} /> {fmtDate(test.test_date)}
+                      </span>
+                    )}
+                    <span style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <Clock size={10} style={{ color:"var(--t4)" }} /> {test.duration || "—"} daq
+                    </span>
                   </div>
                 </div>
-                {resCount>0&&(
-                  <div style={{background:"var(--bg)",borderRadius:"var(--r-sm)",padding:"8px 10px",marginBottom:10,fontSize:11}}>
-                    <div style={{display:"flex",justifyContent:"space-between"}}>
-                      <span>{resCount} ta talaba topshirdi</span>
-                      <span style={{fontWeight:800}}>O'rt: {avgScore}%</span>
+
+                {/* Pass mark */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                  background:"var(--card2)", borderRadius:"var(--r-xs)", padding:"7px 10px",
+                  border:"1px solid var(--line2)" }}>
+                  <span style={{ fontSize:11, color:"var(--t4)" }}>Savollar: <b style={{ color:"var(--t1)" }}>{qCount}</b></span>
+                  <span style={{ fontSize:11, color:"var(--t4)" }}>O'tish: <b style={{ color:"var(--brand)" }}>{test.pass_marks || 60}/{test.total_marks || 100}</b></span>
+                </div>
+
+                {/* Results bar */}
+                {resCount > 0 && (
+                  <div style={{ background: avgScore >= 70 ? "#ecfdf5" : "#fef2f2", borderRadius:"var(--r-xs)",
+                    padding:"7px 10px", border:`1px solid ${avgScore >= 70 ? "#a7f3d0" : "#fecaca"}` }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:11 }}>
+                      <span style={{ color:"var(--t3)", display:"flex", alignItems:"center", gap:4 }}>
+                        <Users size={10} /> {resCount} topshirdi
+                      </span>
+                      <span style={{ fontWeight:800, color: avgScore >= 70 ? "var(--green)" : "var(--red)",
+                        display:"flex", alignItems:"center", gap:3 }}>
+                        <TrendingUp size={10} /> O'rtacha: {avgScore}%
+                      </span>
                     </div>
                   </div>
                 )}
+
                 <div className="card-actions">
-                  <button className="btn btn-primary btn-sm" onClick={()=>setSel(test.id)}>Ko'rish</button>
-                  <button className="btn btn-ghost btn-sm" onClick={()=>setModal({type:"test",row:test})}>✎</button>
-                  <button className="btn btn-ghost btn-sm danger" onClick={()=>remove(test.id)}>✕</button>
+                  <button className="btn btn-primary btn-sm" style={{ flex:1 }}
+                    onClick={() => setSel(test.id)}>
+                    <BarChart2 size={12} /> Natijalar
+                  </button>
+                  <button className="btn btn-ghost btn-sm" title="Tahrirlash"
+                    onClick={() => setModal({ type:"test", row:test })}><Pencil size={12} /></button>
+                  <button className="btn btn-ghost btn-sm danger" title="O'chirish"
+                    onClick={() => remove(test.id)}><Trash2 size={12} /></button>
                 </div>
               </div>
             );
           })}
-          <div className="group-card add-card" onClick={()=>setModal({type:"test"})} role="button" tabIndex={0}>
-            <span className="add-card-icon">📝</span><span>{t.addTest}</span>
+          <div className="group-card add-card" onClick={() => setModal({ type:"test" })} role="button" tabIndex={0}>
+            <FileText size={32} strokeWidth={1} style={{ color:"var(--t4)" }} />
+            <span style={{ fontSize:13.5, fontWeight:700 }}>{t.addTest}</span>
           </div>
         </div>
       )}
 
-      {view==="results"&&(
+      {view === "results" && (
         <Card>
           <table className="tbl">
             <thead>
               <tr><th>Test</th><th>Talaba</th><th>Ball</th><th>Natija</th><th>Sana</th></tr>
             </thead>
             <tbody>
-              {results.map(r=>{
-                const test = tests.find(t=>t.id===r.test_id);
-                const pct = Math.round((r.score||0)/(test?.total_marks||100)*100);
+              {results.map(r => {
+                const test = tests.find(tk => tk.id === r.test_id);
+                const pct  = Math.round((r.score || 0) / (test?.total_marks || 100) * 100);
                 return (
                   <tr key={r.id} className="tbl-row">
-                    <td><b style={{fontSize:12}}>{test?.title||"—"}</b></td>
-                    <td><b>{r.student_name||"—"}</b></td>
                     <td>
-                      <div className={`score-circle score-${pct>=80?"pass":pct>=60?"medium":"fail"}`} style={{width:40,height:40,fontSize:12}}>
-                        {r.score||0}
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <div style={{ width:28, height:28, borderRadius:7, background:"#eff6ff", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <FileText size={12} strokeWidth={1.75} style={{ color:"var(--brand)" }} />
+                        </div>
+                        <b style={{ fontSize:12.5 }}>{test?.title || "—"}</b>
+                      </div>
+                    </td>
+                    <td><b style={{ fontSize:13 }}>{r.student_name || "—"}</b></td>
+                    <td>
+                      <div className={`score-circle score-${pct >= 80 ? "pass" : pct >= 60 ? "medium" : "fail"}`}
+                        style={{ width:42, height:42, fontSize:13, fontWeight:900 }}>
+                        {r.score || 0}
                       </div>
                     </td>
                     <td>
-                      <Pill type={r.passed?"green":"red"}>{r.passed?t.passed:t.failed}</Pill>
+                      <Pill type={r.passed ? "green" : "red"}>
+                        {r.passed
+                          ? <><CheckCircle size={10} style={{ display:"inline", marginRight:3 }} />{t.passed}</>
+                          : <><XCircle size={10} style={{ display:"inline", marginRight:3 }} />{t.failed}</>}
+                      </Pill>
                     </td>
-                    <td className="muted">{fmtFull(r.submitted_at)}</td>
+                    <td style={{ fontSize:12, color:"var(--t4)" }}>{fmtFull(r.submitted_at)}</td>
                   </tr>
                 );
               })}
-              {!results.length&&<tr><td colSpan={5}><Empty text="Natijalar yo'q" icon="📊"/></td></tr>}
+              {!results.length && (
+                <tr><td colSpan={5}>
+                  <Empty text="Natijalar yo'q" sub="Hali hech qanday test topshirilmagan" />
+                </td></tr>
+              )}
             </tbody>
           </table>
         </Card>

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { TrendingUp, TrendingDown, BarChart2, Download } from "lucide-react";
 import { supabase as db } from "../lib/supabase.js";
 import {
   Card, FinanceHeroCard, Pill, MethodBadge, CategoryBadge,
@@ -27,9 +28,9 @@ export default function Finance({ t, data, stats, sub, setSub, setModal, loadAll
     <div className="page-enter">
       {/* Hero */}
       <div className="finance-hero">
-        <FinanceHeroCard title={t.income}  value={money(stats.income)}  tone="green" icon="💰" sub={`${(data.payments||[]).length} ta to'lov`}/>
-        <FinanceHeroCard title={t.expense} value={money(stats.expense)} tone="red"   icon="💸" sub={`${(data.expenses||[]).length} ta xarajat`}/>
-        <FinanceHeroCard title={t.profit}  value={money(stats.profit)}  tone={stats.profit>=0?"blue":"red"} icon="📊" sub="Sof daromad"/>
+        <FinanceHeroCard title={t.income}  value={money(stats.income)}  tone="green" icon={<TrendingUp  size={24} strokeWidth={1.75} />} sub={`${(data.payments||[]).length} ta to'lov`}/>
+        <FinanceHeroCard title={t.expense} value={money(stats.expense)} tone="red"   icon={<TrendingDown size={24} strokeWidth={1.75} />} sub={`${(data.expenses||[]).length} ta xarajat`}/>
+        <FinanceHeroCard title={t.profit}  value={money(stats.profit)}  tone={stats.profit>=0?"blue":"red"} icon={<BarChart2 size={24} strokeWidth={1.75} />} sub="Sof daromad"/>
       </div>
 
       {/* Tabs */}

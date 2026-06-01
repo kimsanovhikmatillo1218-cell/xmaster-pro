@@ -115,9 +115,9 @@ export function StatCard({ label, value, icon, tone = "blue", sub, trend, trendU
 /* ─── Finance Hero Card ──────────────────────────────────────────── */
 export function FinanceHeroCard({ title, value, tone, icon, sub }) {
   return (
-    <div className={`fin-card fin-${tone}`}>
+    <div className={`fin-card ${tone}`}>
       <div className="fin-icon">{icon}</div>
-      <div>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div className="fin-amt">{value}</div>
         <div className="fin-label">{title}</div>
         {sub && <div className="fin-count">{sub}</div>}
@@ -270,7 +270,7 @@ export function DonutChart({ value = 0, max = 100, color = "#3b82f6", size = 100
   return (
     <div className="donut-wrap" style={{ width: size, height: size }}>
       <svg viewBox="0 0 100 100" style={{ width: size, height: size, transform: "rotate(-90deg)" }}>
-        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--surface-3)" strokeWidth="10" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="var(--card3)" strokeWidth="10" />
         <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="10"
           strokeDasharray={`${dash} ${circ - dash}`}
           strokeLinecap="round"
@@ -366,7 +366,7 @@ export function Mini({ title, value, tone = "blue", sub }) {
 export function Line({ l, r }) {
   return (
     <div className="info-row">
-      <span className="ir-label">{l}</span>
+      <span className="ir-lbl">{l}</span>
       <span className="ir-val">{r == null || r === "" ? "—" : r}</span>
     </div>
   );
