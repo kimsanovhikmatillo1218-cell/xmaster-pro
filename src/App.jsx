@@ -312,7 +312,14 @@ function AppInner({ user, onLogout }) {
               title={theme === "dark" ? "Yorug' rejim" : "Qorong'i rejim"}>
               {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
             </button>
-            <select className="lang-sel" value={lang} onChange={e => setLang(e.target.value)}>
+            <div className="lang-btn-group">
+              {[{v:"uz",f:"🇺🇿",l:"UZ"},{v:"ru",f:"🇷🇺",l:"RU"},{v:"en",f:"🇬🇧",l:"EN"}].map(x=>(
+                <button key={x.v} className={`lang-btn ${lang===x.v?"on":""}`} onClick={()=>setLang(x.v)}>
+                  {x.f} {x.l}
+                </button>
+              ))}
+            </div>
+            <select className="lang-sel" value={lang} onChange={e => setLang(e.target.value)} style={{display:"none"}}>
               <option value="uz">🇺🇿 UZ</option>
               <option value="ru">🇷🇺 RU</option>
               <option value="en">🇬🇧 EN</option>
@@ -594,146 +601,299 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
   );
 }
 
-function Attendance({ t, data, setModal, loadAll }) {
+function Attendance({ t, data, loadAll }) {
   const toast = useToast();
-  const [selGroup,   setSelGroup]   = useState("");
-  const [bulkDate,   setBulkDate]   = useState(new Date().toISOString().slice(0,10));
-  const [bulkSaving, setBulkSaving] = useState(false);
+  const today = new Date().toISOString().slice(0,10);
+  const [selGroup,  setSelGroup]  = useState("");
+  const [lessonDate,setLessonDate]= useState(today);
+  const [saving,    setSaving]    = useState({});   // { studentName: true/false }
+  const [notes,     setNotes]     = useState({});   // { studentName: "..." }
+  const [showNote,  setShowNote]  = useState(null); // studentName
 
-  const groups   = useMemo(() => [...new Set((data.students || []).map(s => s.group_name).filter(Boolean))], [data.students]);
-  const students = useMemo(() =>
-    (selGroup ? (data.students || []).filter(s => s.group_name === selGroup) : (data.students || [])).slice(0, 30),
-    [data.students, selGroup]);
-  const dates = useMemo(() => {
-    const all = [...new Set((data.attendance || []).map(a => a.lesson_date).filter(Boolean))].sort().slice(-7);
-    if (all.length) return all;
-    return Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d.toISOString().slice(0, 10); });
-  }, [data.attendance]);
-  const getStatus = (name, date) => (data.attendance || []).find(a => a.student_name === name && a.lesson_date === date)?.status || null;
+  const groups = useMemo(()=>[...new Set((data.students||[]).map(s=>s.group_name).filter(Boolean))],[data.students]);
+  const students = useMemo(()=>selGroup ? (data.students||[]).filter(s=>s.group_name===selGroup) : [],[data.students,selGroup]);
 
-  // Bulk davomat — guruhning barcha talabalarini bir status bilan belgilash
-  const bulkMark = async (status) => {
-    if (!selGroup) return toast("Avval guruh tanlang", "warning");
-    const groupStudents = (data.students || []).filter(s => s.group_name === selGroup);
-    if (!groupStudents.length) return toast("Guruhda talabalar yo'q", "warning");
-    setBulkSaving(true);
-    try {
-      const rows = groupStudents.map(s => ({
-        student_name: s.full_name,
-        group_name:   selGroup,
-        lesson_date:  bulkDate,
-        status,
-      }));
-      // Mavjud yozuvlarni o'chir, keyin yangi qo'sh
-      await db.from("attendance")
-        .delete()
-        .eq("group_name", selGroup)
-        .eq("lesson_date", bulkDate);
-      const { error } = await db.from("attendance").insert(rows);
-      if (error) throw error;
-      const icons = { present:"✅", absent:"❌", late:"⚠️", excused:"📋" };
-      toast(`${icons[status] || "✓"} ${groupStudents.length} talaba — ${status === "present" ? "Keldi" : status === "absent" ? "Kelmadi" : status === "late" ? "Kechikdi" : "Sababli"}`);
-      await loadAll();
-    } catch(e) { toast(e.message, "error"); }
-    finally { setBulkSaving(false); }
+  const getAtt = (name) => (data.attendance||[]).find(a=>a.student_name===name && a.lesson_date===lessonDate);
+  const getRate = (name) => {
+    const rows = (data.attendance||[]).filter(a=>a.student_name===name);
+    if (!rows.length) return null;
+    return Math.round(rows.filter(a=>a.status==="present").length/rows.length*100);
   };
 
+  const markOne = async (studentName, status) => {
+    setSaving(s=>({...s,[studentName]:true}));
+    try {
+      const groupName = (data.students||[]).find(s=>s.full_name===studentName)?.group_name||"";
+      const note = notes[studentName]||"";
+      const existing = getAtt(studentName);
+      if (existing) {
+        await db.from("attendance").update({status,note}).eq("id",existing.id);
+      } else {
+        await db.from("attendance").insert({student_name:studentName,group_name:groupName,lesson_date:lessonDate,status,note});
+      }
+      setShowNote(null);
+      await loadAll();
+    } catch(e){ toast(e.message,"error"); }
+    finally { setSaving(s=>({...s,[studentName]:false})); }
+  };
+
+  const markAll = async (status) => {
+    if (!students.length) return;
+    setSaving(Object.fromEntries(students.map(s=>[s.full_name,true])));
+    try {
+      await db.from("attendance").delete().eq("group_name",selGroup).eq("lesson_date",lessonDate);
+      await db.from("attendance").insert(students.map(s=>({
+        student_name:s.full_name, group_name:selGroup, lesson_date:lessonDate, status, note:""
+      })));
+      toast(`${status==="present"?"✅":"❌"} ${students.length} talaba belgilandi`);
+      await loadAll();
+    } catch(e){ toast(e.message,"error"); }
+    finally { setSaving({}); }
+  };
+
+  const presentCount = students.filter(s=>getAtt(s.full_name)?.status==="present").length;
+  const absentCount  = students.filter(s=>getAtt(s.full_name)?.status==="absent").length;
+  const unmarkedCount= students.filter(s=>!getAtt(s.full_name)).length;
+
+  const DAY_NAMES = ["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"];
+
   return (
-    <div className="page-fade">
-      {/* ── Bulk toolbar ── */}
-      <div style={{ background:"var(--card)", border:"1px solid var(--line)", borderRadius:"var(--r)", padding:"14px 18px", marginBottom:14, boxShadow:"var(--sh1)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-          <select style={{ flex:"0 0 160px" }} value={selGroup} onChange={e => setSelGroup(e.target.value)}>
-            <option value="">Barcha guruhlar</option>
-            {groups.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-          <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)}
-            style={{ flex:"0 0 140px" }} />
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            <span style={{ fontSize:11, color:"var(--t4)", fontWeight:600, alignSelf:"center" }}>Barchasi:</span>
-            {[
-              { s:"present", l:"✅ Keldi",   c:"var(--green)" },
-              { s:"absent",  l:"❌ Kelmadi", c:"var(--red)"   },
-              { s:"late",    l:"⚠️ Kechikdi",c:"var(--yellow)"},
-            ].map(({s,l,c}) => (
-              <button key={s} className="btn btn-ghost btn-sm" disabled={bulkSaving}
-                style={{ borderColor:c, color:c }}
-                onClick={() => bulkMark(s)}>
-                {bulkSaving ? <RefreshCw size={11} className="spin"/> : l}
-              </button>
-            ))}
+    <div className="page-fade" style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* ── 1. Guruh + Sana tanlash ── */}
+      <div className="att-header-card">
+        <div className="att-sel-row">
+          <div className="att-sel-wrap">
+            <span className="att-sel-label">Guruh</span>
+            <select className="att-sel" value={selGroup} onChange={e=>{setSelGroup(e.target.value);setSaving({});}}>
+              <option value="">— Guruh tanlang —</option>
+              {groups.map(g=><option key={g} value={g}>{g}</option>)}
+            </select>
           </div>
-          <button className="btn btn-primary btn-sm" style={{ marginLeft:"auto" }}
-            onClick={() => setModal({ type: "attendance" })}>+ Davomat</button>
+          <div className="att-sel-wrap">
+            <span className="att-sel-label">Sana</span>
+            <input type="date" className="att-sel" value={lessonDate} onChange={e=>setLessonDate(e.target.value)}/>
+          </div>
+          <div className="att-day-badge">
+            {DAY_NAMES[new Date(lessonDate+"T00:00").getDay()]}
+          </div>
         </div>
+
+        {selGroup && students.length > 0 && (
+          <div className="att-bulk-row">
+            <span style={{fontSize:12,color:"var(--t4)",fontWeight:600}}>Barchasi:</span>
+            <button className="att-bulk-btn present" onClick={()=>markAll("present")}>✓ Hammasi keldi</button>
+            <button className="att-bulk-btn absent"  onClick={()=>markAll("absent")}>✗ Hammasi kelmadi</button>
+            <div className="att-stats">
+              <span className="att-stat-chip present">{presentCount} keldi</span>
+              <span className="att-stat-chip absent">{absentCount} kelmadi</span>
+              <span className="att-stat-chip none">{unmarkedCount} belgilanmagan</span>
+            </div>
+          </div>
+        )}
       </div>
-      <Card className="pad">
-        <div style={{ overflowX: "auto" }}>
-          <div className="att-grid" style={{ gridTemplateColumns: `180px repeat(${dates.length},1fr) 56px` }}>
-            <div key="hdr-name" className="att-hdr left">FISH</div>
-            {dates.map((d, di) => <div key={`hdr-d-${di}`} className="att-th">{new Date(d + "T00:00").getDate()}<br /><span style={{ fontSize: 8, opacity: .6 }}>{["Ya","Du","Se","Ch","Pa","Sh","Ya"][new Date(d + "T00:00").getDay()]}</span></div>)}
-            <div key="hdr-pct" className="att-th">%</div>
-            {students.flatMap((s, si) => {
-              const statuses = dates.map(d => getStatus(s.full_name, d));
-              const known    = statuses.filter(x => x !== null);
-              const rate     = known.length ? Math.round(known.filter(x => x === "present").length / known.length * 100) : null;
-              return [
-                <div key={`r${si}-name`} className="att-name" title={s.full_name}>{s.full_name}</div>,
-                ...dates.map((d, di) => {
-                  const st = statuses[di];
-                  return <div key={`r${si}-d${di}`} className={`att-dot ${st === "present" ? "ad-g" : st === "absent" ? "ad-r" : st === "late" ? "ad-y" : ""}`}
-                    style={{ opacity: st ? 1 : .18, cursor: "pointer" }}
-                    onClick={() => setModal({ type: "attendance", row: { student_name: s.full_name, lesson_date: d, group_name: s.group_name } })}>
-                    {st === "present" ? "✓" : st === "absent" ? "✗" : st === "late" ? "!" : "·"}
-                  </div>;
-                }),
-                <div key={`r${si}-pct`} className={`${rate !== null ? (rate > 75 ? "green" : "red") : "c-muted"} att-pct-cell`}>{rate !== null ? `${rate}%` : "—"}</div>
-              ];
-            })}
-          </div>
+
+      {/* ── 2. Talabalar ro'yxati ── */}
+      {!selGroup ? (
+        <div className="att-empty-state">
+          <div style={{fontSize:48,marginBottom:12}}>📋</div>
+          <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:16,fontWeight:800,color:"var(--t3)"}}>Guruh tanlang</div>
+          <div style={{fontSize:13,color:"var(--t4)",marginTop:6}}>Yuqoridan guruh tanlang va davomat belgilang</div>
         </div>
-        <div className="att-legend">
-          <span className="att-cell att-p" style={{ width: 24, height: 18, fontSize: 9 }}>✓</span> Keldi
-          <span className="att-cell att-a" style={{ width: 24, height: 18, fontSize: 9, marginLeft: 12 }}>✗</span> Kelmadi
-          <span className="att-cell att-l" style={{ width: 24, height: 18, fontSize: 9, marginLeft: 12 }}>!</span> Kechikdi
+      ) : students.length === 0 ? (
+        <div className="att-empty-state">
+          <div style={{fontSize:48,marginBottom:12}}>👥</div>
+          <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:16,fontWeight:800,color:"var(--t3)"}}>Bu guruhda talabalar yo'q</div>
         </div>
-      </Card>
+      ) : (
+        <div className="att-student-list">
+          {students.map((s, si) => {
+            const att   = getAtt(s.full_name);
+            const st    = att?.status || null;
+            const rate  = getRate(s.full_name);
+            const isBusy= saving[s.full_name];
+            const initials = (s.full_name||"?").split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase();
+
+            return (
+              <div key={s.id} className={`att-student-row ${st||"none"}`}>
+                {/* Avatar + ism */}
+                <div className="att-student-info">
+                  <div className="att-student-av" style={{background: st==="present"?"#dcfce7":st==="absent"?"#fee2e2":st==="late"?"#fef3c7":"var(--card3)", color:st==="present"?"#16a34a":st==="absent"?"#dc2626":st==="late"?"#d97706":"var(--t4)"}}>
+                    {initials}
+                  </div>
+                  <div>
+                    <div className="att-student-name">{s.full_name}</div>
+                    <div className="att-student-meta">
+                      {s.phone && <span>{s.phone}</span>}
+                      {rate !== null && <span style={{color:rate>75?"var(--green)":"var(--red)",fontWeight:700}}>{rate}%</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tugmalar */}
+                <div className="att-action-btns">
+                  {[
+                    {s:"present", l:"✓",  label:"Keldi",    c:"present"},
+                    {s:"absent",  l:"✗",  label:"Kelmadi",  c:"absent"},
+                    {s:"late",    l:"!",  label:"Kechikdi", c:"late"},
+                    {s:"excused", l:"~",  label:"Sababli",  c:"excused"},
+                  ].map(btn=>(
+                    <button key={btn.s}
+                      className={`att-btn att-btn-${btn.c} ${st===btn.s?"active":""}`}
+                      onClick={()=>markOne(s.full_name, btn.s)}
+                      disabled={isBusy}
+                      title={btn.label}>
+                      {isBusy && st!==btn.s ? <RefreshCw size={11} className="spin"/> : btn.l}
+                    </button>
+                  ))}
+                  <button className="att-btn att-btn-note" title="Izoh" onClick={()=>setShowNote(showNote===s.full_name?null:s.full_name)}>
+                    💬
+                  </button>
+                </div>
+
+                {/* Izoh input */}
+                {showNote===s.full_name && (
+                  <div className="att-note-row">
+                    <input
+                      type="text"
+                      placeholder="Izoh yozing (ixtiyoriy)..."
+                      value={notes[s.full_name]||""}
+                      onChange={e=>setNotes(n=>({...n,[s.full_name]:e.target.value}))}
+                      onKeyDown={e=>{ if(e.key==="Enter" && st) markOne(s.full_name, st); }}
+                      autoFocus
+                      style={{fontSize:12}}
+                    />
+                    {st && <button className="btn btn-primary btn-xs" onClick={()=>markOne(s.full_name,st)}>Saqlash</button>}
+                  </div>
+                )}
+
+                {/* Mavjud izoh */}
+                {att?.note && showNote!==s.full_name && (
+                  <div className="att-existing-note">💬 {att.note}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function Schedule({ data, setModal }) {
-  const COLORS = ["sc-bl", "sc-gr", "sc-pu", "sc-am", "sc-cy"];
-  const days   = WEEK_DAYS.slice(0, 5);
-  const allGroups = useMemo(() => [...new Set((data.schedules || []).map(s => s.group_name).filter(Boolean))], [data.schedules]);
-  const colorMap  = useMemo(() => Object.fromEntries(allGroups.map((g, i) => [g, COLORS[i % COLORS.length]])), [allGroups]);
+  const toast  = useToast();
+  const [hover, setHover] = useState(null); // {day, time}
+  const [selDays, setSelDays] = useState(["Du","Se","Cho","Pay","Ju"]);
+
+  const COLORS   = { sc_bl:"#eff6ff", sc_gr:"#f0fdf4", sc_pu:"#f5f3ff", sc_am:"#fff7ed", sc_cy:"#ecfeff", sc_pi:"#fdf2f8" };
+  const COLOR_BG = ["#eff6ff","#f0fdf4","#f5f3ff","#fff7ed","#ecfeff","#fdf2f8"];
+  const COLOR_BD = ["#3b82f6","#22c55e","#8b5cf6","#f97316","#06b6d4","#ec4899"];
+  const days     = WEEK_DAYS.slice(0, 6); // Du - Shanba
+
+  const allGroups = useMemo(() => [...new Set((data.schedules||[]).map(s=>s.group_name).filter(Boolean))], [data.schedules]);
+  const colorIdx  = useMemo(() => Object.fromEntries(allGroups.map((g,i)=>[g,i%COLOR_BG.length])), [allGroups]);
+
+  const isBusy = (day, time) => (data.schedules||[]).some(s=>s.day_name===day&&s.start_time===time);
+  const getCells = (day, time) => (data.schedules||[]).filter(s=>s.day_name===day&&s.start_time===time);
+
+  const DAY_SHORT = {Dushanba:"Du",Seshanba:"Se",Chorshanba:"Cho",Payshanba:"Pay",Juma:"Ju",Shanba:"Sha"};
+
   return (
-    <div className="page-fade">
-      <div className="page-toolbar">
-        <div style={{ display:"flex", alignItems:"center", gap:8, fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:15, color:"var(--t1)" }}>
-          <Calendar size={16} style={{ color:"var(--brand)" }} /> Haftalik jadval
+    <div className="page-fade" style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Toolbar */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:15,color:"var(--t1)",display:"flex",alignItems:"center",gap:7}}>
+            <Calendar size={16} style={{color:"var(--brand)"}}/> Haftalik jadval
+          </div>
+          {/* Legend */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {allGroups.slice(0,6).map((g,i)=>(
+              <span key={g} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,fontWeight:600}}>
+                <span style={{width:10,height:10,borderRadius:3,background:COLOR_BD[i%COLOR_BD.length]}}/>
+                {g}
+              </span>
+            ))}
+          </div>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "schedule" })}>
-          <Plus size={13} /> Dars qo'shish
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"schedule"})}>
+          <Plus size={13}/> Dars qo'shish
         </button>
       </div>
+
+      {/* Band vaqtlar statistikasi */}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {[
+          {l:"Jami darslar", v:(data.schedules||[]).length, c:"var(--brand)"},
+          {l:"Band soatlar", v:new Set((data.schedules||[]).map(s=>`${s.day_name}-${s.start_time}`)).size, c:"var(--orange)"},
+          {l:"Bo'sh soatlar", v:TIMES.length*days.length-new Set((data.schedules||[]).map(s=>`${s.day_name}-${s.start_time}`)).size, c:"var(--green)"},
+        ].map(x=>(
+          <div key={x.l} style={{padding:"8px 14px",background:"var(--card)",border:"1px solid var(--line)",borderRadius:12,boxShadow:"var(--sh1)"}}>
+            <div style={{fontSize:10,color:"var(--t4)",fontWeight:600}}>{x.l}</div>
+            <div style={{fontSize:18,fontWeight:900,color:x.c,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{x.v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Grid */}
       <Card className="pad">
-        <div style={{ overflowX: "auto" }}>
-          <div className="sch-grid" style={{ gridTemplateColumns: "54px repeat(5,1fr)" }}>
-            <div />
-            {days.map(d => <div key={d} className="sch-day">{d.slice(0, 3)}</div>)}
-            {TIMES.map(tm => [
-              <div key={tm} className="sch-time">{tm}</div>,
-              ...days.map(day => {
-                const cells = (data.schedules || []).filter(s => s.day_name === day && s.start_time === tm);
+        <div style={{overflowX:"auto"}}>
+          <div className="sch-grid" style={{gridTemplateColumns:`60px repeat(${days.length},1fr)`,minWidth:550}}>
+            {/* Header */}
+            <div style={{background:"transparent"}}/>
+            {days.map(d=>(
+              <div key={d} className="sch-day">
+                <div>{DAY_SHORT[d]||d.slice(0,3)}</div>
+                <div style={{fontSize:9,opacity:.6,fontWeight:500,marginTop:1}}>
+                  {(data.schedules||[]).filter(s=>s.day_name===d).length} dars
+                </div>
+              </div>
+            ))}
+
+            {/* Rows */}
+            {TIMES.map((tm,ti)=>[
+              <div key={`t${ti}`} className="sch-time">{tm}</div>,
+              ...days.map((day,di)=>{
+                const cells = getCells(day,tm);
+                const busy  = cells.length > 0;
+                const isHov = hover?.day===day && hover?.time===tm;
                 return (
-                  <div key={`${tm}-${day}`} className={`sch-c ${cells.length ? colorMap[cells[0]?.group_name] || "sc-bl" : "sc-mt"}`}>
-                    {cells.map((c, i) => <div key={i}><b style={{ fontSize: 10 }}>{c.group_name}</b><div style={{ opacity: .7, fontSize: 9 }}>{c.room && `X${c.room}`}{c.teacher_name && ` · ${c.teacher_name.split(" ")[0]}`}</div></div>)}
+                  <div key={`${ti}-${di}`}
+                    className={`sch-c ${busy?"":"sc-mt"}`}
+                    style={{
+                      background: busy ? COLOR_BG[colorIdx[cells[0]?.group_name]||0] : isHov ? "var(--brand4)" : "",
+                      borderLeft: busy ? `3px solid ${COLOR_BD[colorIdx[cells[0]?.group_name]||0]}` : "",
+                      cursor: busy ? "default" : "pointer",
+                      minHeight:44,
+                      position:"relative",
+                    }}
+                    onMouseEnter={()=>setHover({day,time:tm})}
+                    onMouseLeave={()=>setHover(null)}
+                    onClick={()=>!busy&&setModal({type:"schedule",row:{day_name:day,start_time:tm}})}
+                  >
+                    {busy ? cells.map((c,i)=>(
+                      <div key={i}>
+                        <div style={{fontSize:10.5,fontWeight:800,color:COLOR_BD[colorIdx[c.group_name]||0]}}>{c.group_name}</div>
+                        <div style={{fontSize:9,color:"var(--t4)",marginTop:1}}>
+                          {c.room&&`Xona ${c.room} · `}{c.teacher_name?.split(" ")[0]}
+                        </div>
+                      </div>
+                    )) : isHov ? (
+                      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--brand)",fontSize:18,opacity:.5}}>+</div>
+                    ) : null}
                   </div>
                 );
               })
             ])}
           </div>
+        </div>
+        <div style={{display:"flex",gap:14,padding:"10px 0 0",fontSize:11,color:"var(--t4)"}}>
+          <span style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{width:12,height:12,borderRadius:3,background:"var(--brand3)",border:"1px solid var(--brand-brd)",display:"inline-block"}}/> Bo'sh (bosib qo'shish)
+          </span>
+          <span style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{width:12,height:12,borderRadius:3,background:"#eff6ff",border:"2px solid #3b82f6",display:"inline-block"}}/> Band
+          </span>
         </div>
       </Card>
     </div>
@@ -1275,29 +1435,7 @@ function Settings({ t, data, setModal, loadAll }) {
       </Card>
 
       {/* Filiallar */}
-      <Card className="pad">
-        <div className="card-hd" style={{ marginBottom:16 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ width:32, height:32, borderRadius:9, background:"#f0fdf4", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <Building2 size={15} strokeWidth={1.75} style={{ color:"var(--green)" }} />
-            </div>
-            <div className="card-title">Filiallar</div>
-          </div>
-        </div>
-        {(data.branches || []).map(b => (
-          <div key={b.id} className="line">
-            <span style={{ display:"flex", alignItems:"center", gap:5 }}>
-              <MapPin size={11} style={{ color:"var(--t4)" }} /> {b.name}
-            </span>
-            <b style={{ fontSize:12 }}>{b.address || "—"}</b>
-          </div>
-        ))}
-        {!data.branches?.length && <Empty text="Filiallar yo'q" />}
-        <button className="btn btn-primary btn-sm" style={{ marginTop:14, width:"100%" }}
-          onClick={() => setModal({ type: "branch" })}>
-          <Plus size={12} /> Filial qo'shish
-        </button>
-      </Card>
+      <BranchManager data={data} loadAll={loadAll} toast={toast} setModal={setModal} />
 
       {/* Rollar */}
       <Card className="pad">
@@ -1348,6 +1486,90 @@ function Settings({ t, data, setModal, loadAll }) {
       {/* Telegram sozlamalari — to'liq 2 ustun */}
       <TelegramSettings data={data} toast={toast} />
     </div>
+  );
+}
+
+/* ── Branch Manager ─────────────────────────────────────────────── */
+function BranchManager({ data, loadAll, toast, setModal }) {
+  const confirm = useConfirm();
+  const [editId,   setEditId]   = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editAddr, setEditAddr] = useState("");
+  const [saving,   setSaving]   = useState(false);
+
+  const deleteBranch = async (id, name) => {
+    if (!await confirm(`"${name}" filialini o'chirasizmi?`)) return;
+    const { error } = await db.from("branches").delete().eq("id", id);
+    if (error) return toast(error.message, "error");
+    toast("Filial o'chirildi"); loadAll();
+  };
+
+  const saveEdit = async () => {
+    if (!editName.trim()) return toast("Filial nomi kerak","warning");
+    setSaving(true);
+    const { error } = await db.from("branches").update({ name:editName, address:editAddr }).eq("id",editId);
+    setSaving(false);
+    if (error) return toast(error.message,"error");
+    toast("Saqlandi"); setEditId(null); loadAll();
+  };
+
+  return (
+    <Card className="pad">
+      <div className="card-hd" style={{ marginBottom:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ width:32, height:32, borderRadius:9, background:"var(--brand3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Building2 size={15} strokeWidth={1.75} style={{ color:"var(--brand)" }} />
+          </div>
+          <div className="card-title">Filiallar</div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type:"branch" })}>
+          <Plus size={12} /> Qo'shish
+        </button>
+      </div>
+
+      {(data.branches || []).length ? (data.branches || []).map(b => (
+        <div key={b.id}>
+          {editId === b.id ? (
+            <div style={{ background:"var(--card2)", borderRadius:12, padding:"12px", marginBottom:8, border:"1px solid var(--brand-brd)" }}>
+              <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                <input placeholder="Filial nomi *" value={editName} onChange={e=>setEditName(e.target.value)} style={{ flex:1 }} />
+                <input placeholder="Manzil" value={editAddr} onChange={e=>setEditAddr(e.target.value)} style={{ flex:2 }} />
+              </div>
+              <div style={{ display:"flex", gap:6 }}>
+                <button className="btn btn-primary btn-sm" onClick={saveEdit} disabled={saving}>
+                  {saving ? <RefreshCw size={11} className="spin"/> : <><Save size={11}/> Saqlash</>}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setEditId(null)}>Bekor</button>
+              </div>
+            </div>
+          ) : (
+            <div className="line" style={{ alignItems:"center" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:"var(--brand3)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <MapPin size={15} style={{ color:"var(--brand)" }} />
+                </div>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:13 }}>{b.name}</div>
+                  <div style={{ fontSize:11, color:"var(--t4)" }}>{b.address || "Manzil kiritilmagan"}</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:6 }}>
+                <button className="btn btn-ghost btn-xs" onClick={()=>{ setEditId(b.id); setEditName(b.name); setEditAddr(b.address||""); }}>
+                  <Pencil size={11}/>
+                </button>
+                <button className="btn btn-ghost btn-xs danger" onClick={()=>deleteBranch(b.id, b.name)}>
+                  <Trash2 size={11}/>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )) : (
+        <div style={{ textAlign:"center", padding:"24px 0", color:"var(--t4)", fontSize:12 }}>
+          Filiallar yo'q — qo'shish tugmasini bosing
+        </div>
+      )}
+    </Card>
   );
 }
 
