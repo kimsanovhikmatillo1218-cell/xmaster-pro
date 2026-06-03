@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { TrendingUp, TrendingDown, BarChart2, Download, Printer, X } from "lucide-react";
+import { TrendingUp, TrendingDown, BarChart2, Download, Printer, X, Search, SlidersHorizontal } from "lucide-react";
 import { supabase as db } from "../lib/supabase.js";
 import {
   Card, FinanceHeroCard, Pill, MethodBadge, CategoryBadge,
@@ -10,6 +10,10 @@ import { money, short, fmtFull, exportCSV } from "../lib/utils.js";
 export default function Finance({ t, data, stats, sub, setSub, setModal, loadAll }) {
   const toast    = useToast();
   const confirm  = useConfirm();
+  const [paySearch,  setPaySearch]  = useState("");
+  const [payMethod,  setPayMethod]  = useState("");
+  const [payMonth,   setPayMonth]   = useState("");
+  const [showFilt,   setShowFilt]   = useState(false);
   const debtors  = (data.students||[]).filter(s=>Number(s.balance||0)<0);
   const [receipt, setReceipt] = useState(null);
 
@@ -67,32 +71,74 @@ export default function Finance({ t, data, stats, sub, setSub, setModal, loadAll
 
       {/* Payments */}
       {sub==="home"&&(
-        <Card>
-          <table className="tbl">
-            <thead><tr><th>{t.date}</th><th>{t.students}</th><th>{t.group}</th><th>{t.amount}</th><th>{t.method}</th><th>Tur</th><th>{t.actions}</th></tr></thead>
-            <tbody>
-              {(data.payments||[]).map(r=>(
-                <tr key={r.id} className="tbl-row">
-                  <td className="muted" style={{fontSize:11}}>{fmtFull(r.created_at)}</td>
-                  <td><b style={{fontSize:12.5}}>{r.student_name||"—"}</b></td>
-                  <td>{r.group_name?<Pill>{r.group_name}</Pill>:"—"}</td>
-                  <td className="money green" style={{fontWeight:900}}>+{money(r.amount)}</td>
-                  <td><MethodBadge method={r.method}/></td>
-                  <td><Pill type="green">To'lov</Pill></td>
-                  <td>
-                    <div style={{display:"flex",gap:4}}>
-                      <button className="btn btn-ghost btn-xs" title="Chek" onClick={()=>setReceipt(r)}>
-                        <Printer size={11}/>
-                      </button>
-                      <button className="btn btn-ghost btn-xs danger" onClick={()=>remove("payments",r.id)}>✕</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!data.payments?.length&&<tr><td colSpan={7}><Empty text="To'lovlar yo'q" action={t.addPayment} onAction={()=>setModal({type:"payment"})}/></td></tr>}
-            </tbody>
-          </table>
-        </Card>
+        <>
+          {/* Search + filter */}
+          <div className="search-toolbar" style={{marginBottom:10}}>
+            <div className="search-box-main">
+              <Search size={14} className="sb-ico"/>
+              <input className="sb-input" placeholder="Talaba ismi, guruh..." value={paySearch} onChange={e=>setPaySearch(e.target.value)}/>
+              {paySearch&&<button className="sb-clear-btn" onClick={()=>setPaySearch("")}><X size={13}/></button>}
+            </div>
+            <button className={`btn btn-ghost btn-sm ${showFilt?"active":""}`} onClick={()=>setShowFilt(!showFilt)}>
+              <SlidersHorizontal size={13}/> Filtr
+              {(payMethod||payMonth)&&<span style={{width:6,height:6,borderRadius:"50%",background:"var(--brand)",display:"inline-block",marginLeft:2}}/>}
+            </button>
+          </div>
+          {showFilt&&(
+            <div className="filter-panel" style={{marginBottom:10}}>
+              <div className="fp-item">
+                <label className="fp-label">To'lov usuli</label>
+                <select className="fp-sel" value={payMethod} onChange={e=>setPayMethod(e.target.value)}>
+                  <option value="">Hammasi</option>
+                  <option value="cash">💵 Naqd</option>
+                  <option value="card">💳 Karta</option>
+                  <option value="transfer">🏦 O'tkazma</option>
+                  <option value="online">📱 Online</option>
+                </select>
+              </div>
+              <div className="fp-item">
+                <label className="fp-label">Oy</label>
+                <input type="month" className="fp-sel" value={payMonth} onChange={e=>setPayMonth(e.target.value)}/>
+              </div>
+              {(payMethod||payMonth)&&<button className="btn btn-ghost btn-xs" onClick={()=>{setPayMethod("");setPayMonth("");}}>
+                <X size={11}/> Tozalash
+              </button>}
+            </div>
+          )}
+          <Card>
+            <table className="tbl">
+              <thead><tr><th>{t.date}</th><th>{t.students}</th><th>{t.group}</th><th>{t.amount}</th><th>{t.method}</th><th>Tur</th><th>{t.actions}</th></tr></thead>
+              <tbody>
+                {(data.payments||[])
+                  .filter(r=>{
+                    if(paySearch&&![r.student_name,r.group_name].join(" ").toLowerCase().includes(paySearch.toLowerCase())) return false;
+                    if(payMethod&&r.method!==payMethod) return false;
+                    if(payMonth&&!(r.created_at||"").startsWith(payMonth)) return false;
+                    return true;
+                  })
+                  .map(r=>(
+                  <tr key={r.id} className="tbl-row">
+                    <td className="muted" style={{fontSize:11}}>{fmtFull(r.created_at)}</td>
+                    <td><b style={{fontSize:12.5}}>{r.student_name||"—"}</b></td>
+                    <td>{r.group_name?<Pill>{r.group_name}</Pill>:"—"}</td>
+                    <td className="money green" style={{fontWeight:900}}>+{money(r.amount)}</td>
+                    <td><MethodBadge method={r.method}/></td>
+                    <td><Pill type="green">To'lov</Pill></td>
+                    <td>
+                      <div style={{display:"flex",gap:4}}>
+                        <button className="btn btn-ghost btn-xs" title="Chek" onClick={()=>setReceipt(r)}>
+                          <Printer size={11}/>
+                        </button>
+                        <button className="btn btn-ghost btn-xs danger" onClick={()=>remove("payments",r.id)}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!data.payments?.length&&<tr><td colSpan={7}><Empty text="To'lovlar yo'q" action={t.addPayment} onAction={()=>setModal({type:"payment"})}/></td></tr>}
+              </tbody>
+            </table>
+          </Card>
+        </>
       )}
 
       {/* Expenses */}

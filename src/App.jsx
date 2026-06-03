@@ -8,7 +8,7 @@ import {
   ClipboardCheck, Calendar, FileText, BookOpen, Star,
   Library as LibraryIcon, FolderOpen, Target, CheckSquare,
   BarChart3, Settings as SettingsIcon, Bell, Sun, Moon, RefreshCw,
-  Search, X, Building2, Shield,
+  Search, X, Building2, Shield, SlidersHorizontal,
   Plus, Pencil, Trash2, LayoutGrid, List,
   Clock, UserCircle2, BookMarked, MoreHorizontal,
   TrendingUp, TrendingDown, ArrowRight, Eye,
@@ -326,7 +326,7 @@ function AppInner({ user, onLogout }) {
             </select>
             {(data.branches || []).length > 1 ? (
               <select
-                className="lang-sel"
+                className="lang-sel tb-branch-sel"
                 style={{ maxWidth: 130 }}
                 value={(data.branches || [])[0]?.id || ""}
                 onChange={() => {}}
@@ -427,7 +427,17 @@ function AppInner({ user, onLogout }) {
 function Groups({ t, rows, data, setModal, nav, loadAll }) {
   const toast   = useToast();
   const confirm = useConfirm();
-  const [view, setView] = useState("grid");
+  const [view,   setView]   = useState("grid");
+  const [search, setSearch] = useState("");
+  const [subj,   setSubj]   = useState("");
+
+  const subjects = useMemo(()=>[...new Set((rows||[]).map(r=>r.subject).filter(Boolean))],[rows]);
+  const filtRows = useMemo(()=>{
+    let r = rows || [];
+    if (search) r = r.filter(g=>(g.name||"").toLowerCase().includes(search.toLowerCase())||(g.teacher_name||"").toLowerCase().includes(search.toLowerCase()));
+    if (subj) r = r.filter(g=>g.subject===subj);
+    return r;
+  },[rows,search,subj]);
 
   const remove = async id => {
     if (!await confirm(t?.confirmDelete || "O'chirasizmi?")) return;
@@ -436,11 +446,21 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
     toast("Guruh o'chirildi"); loadAll();
   };
 
-  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeRows = filtRows;
 
   return (
     <div className="page-fade">
-      <div className="page-toolbar">
+      {/* Search + toolbar */}
+      <div className="search-toolbar">
+        <div className="search-box-main">
+          <Search size={14} className="sb-ico"/>
+          <input className="sb-input" placeholder="Guruh nomi, o'qituvchi..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          {search&&<button className="sb-clear-btn" onClick={()=>setSearch("")}><X size={13}/></button>}
+        </div>
+        <select style={{height:36,borderRadius:9,border:"1px solid var(--line)",background:"var(--card2)",padding:"0 10px",fontSize:12,color:"var(--t2)"}} value={subj} onChange={e=>setSubj(e.target.value)}>
+          <option value="">Barcha fanlar</option>
+          {subjects.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
         <div className="filter-tabs">
           <button className={`filter-tab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>
             <LayoutGrid size={12} /> Grid
@@ -449,13 +469,13 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
             <List size={12} /> Ro'yxat
           </button>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "group" })}>
+        <button className="btn btn-primary btn-sm" style={{marginLeft:"auto"}} onClick={() => setModal({ type: "group" })}>
           <Plus size={13} /> Guruh qo'shish
         </button>
       </div>
 
       {safeRows.length === 0 && (
-        <Empty text="Guruhlar hali yo'q" sub="Birinchi guruhingizni yarating"
+        <Empty text={search||subj?"Natija topilmadi":"Guruhlar hali yo'q"} sub={search||subj?"Qidiruv mezonlarini o'zgartiring":"Birinchi guruhingizni yarating"}
           action="+ Birinchi guruh" onAction={() => setModal({ type: "group" })} />
       )}
 
@@ -557,6 +577,17 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
 
 function Teachers({ t, rows, data, setModal, loadAll }) {
   const toast = useToast(), confirm = useConfirm();
+  const [search, setSearch] = useState("");
+  const [subjFilt, setSubjFilt] = useState("");
+
+  const subjects = useMemo(()=>[...new Set((rows||[]).map(r=>r.subject).filter(Boolean))],[rows]);
+  const filtRows = useMemo(()=>{
+    let r = rows||[];
+    if(search) r=r.filter(x=>(x.full_name||"").toLowerCase().includes(search.toLowerCase())||(x.phone||"").includes(search));
+    if(subjFilt) r=r.filter(x=>x.subject===subjFilt);
+    return r;
+  },[rows,search,subjFilt]);
+
   const remove = async id => {
     if (!await confirm(t.confirmDelete)) return;
     const { error } = await db.from("teachers").delete().eq("id", id);
@@ -565,9 +596,17 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
   };
   return (
     <div className="page-fade">
-      <div className="page-toolbar">
-        <div />
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "teacher" })}>
+      <div className="search-toolbar">
+        <div className="search-box-main">
+          <Search size={14} className="sb-ico"/>
+          <input className="sb-input" placeholder="Ism, telefon..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          {search&&<button className="sb-clear-btn" onClick={()=>setSearch("")}><X size={13}/></button>}
+        </div>
+        <select style={{height:36,borderRadius:9,border:"1px solid var(--line)",background:"var(--card2)",padding:"0 10px",fontSize:12}} value={subjFilt} onChange={e=>setSubjFilt(e.target.value)}>
+          <option value="">Barcha fanlar</option>
+          {subjects.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <button className="btn btn-primary btn-sm" style={{marginLeft:"auto"}} onClick={() => setModal({ type: "teacher" })}>
           <Plus size={13} /> O'qituvchi qo'shish
         </button>
       </div>
@@ -575,7 +614,7 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
         <table className="tbl">
           <thead><tr><th>FISH</th><th>Telefon</th><th>Fan</th><th>Maosh turi</th><th>Maosh</th><th>Guruhlar</th><th>Holat</th><th>Amal</th></tr></thead>
           <tbody>
-            {rows.map(r => {
+            {filtRows.map(r => {
               const gc = (data.study_groups || []).filter(g => g.teacher_name === r.full_name).length;
               return (
                 <tr key={r.id} className="tbl-row">
@@ -593,7 +632,7 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
                 </tr>
               );
             })}
-            {!rows.length && <tr><td colSpan={8}><Empty text="O'qituvchilar yo'q" sub="Yangi o'qituvchi qo'shing" action="+ O'qituvchi" onAction={() => setModal({ type: "teacher" })} /></td></tr>}
+            {!filtRows.length && <tr><td colSpan={8}><Empty text={search||subjFilt?"Natija topilmadi":"O'qituvchilar yo'q"} sub="Yangi o'qituvchi qo'shing" action="+ O'qituvchi" onAction={() => setModal({ type: "teacher" })} /></td></tr>}
           </tbody>
         </table>
       </Card>
@@ -902,7 +941,18 @@ function Schedule({ data, setModal }) {
 
 function Leads({ t, rows, setModal, loadAll }) {
   const toast = useToast(), confirm = useConfirm();
-  const [view, setView] = useState("kanban");
+  const [view,   setView]   = useState("kanban");
+  const [search, setSearch] = useState("");
+  const [source, setSource] = useState("");
+
+  const sources = useMemo(()=>[...new Set((rows||[]).map(r=>r.source).filter(Boolean))],[rows]);
+  const filtRows = useMemo(()=>{
+    let r = rows||[];
+    if(search) r=r.filter(l=>(l.full_name||"").toLowerCase().includes(search.toLowerCase())||(l.phone||"").includes(search));
+    if(source) r=r.filter(l=>l.source===source);
+    return r;
+  },[rows,search,source]);
+
   const move = async (id, stage) => {
     await db.from("leads").update({ stage }).eq("id", id);
     toast(`→ ${LEAD_STAGES.find(s => s.id === stage)?.label}`); loadAll();
@@ -914,17 +964,22 @@ function Leads({ t, rows, setModal, loadAll }) {
   };
   return (
     <div className="page-fade">
-      <div className="page-toolbar">
-        <div className="filter-tabs">
-          <button className={`filter-tab ${view === "kanban" ? "on" : ""}`} onClick={() => setView("kanban")}>
-            <Layers size={12} /> Kanban
-          </button>
-          <button className={`filter-tab ${view === "list" ? "on" : ""}`} onClick={() => setView("list")}>
-            <List size={12} /> Ro'yxat
-          </button>
+      <div className="search-toolbar">
+        <div className="search-box-main">
+          <Search size={14} className="sb-ico"/>
+          <input className="sb-input" placeholder="Ism, telefon..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          {search&&<button className="sb-clear-btn" onClick={()=>setSearch("")}><X size={13}/></button>}
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "lead" })}>
-          <Plus size={13} /> Yangi lid
+        <select style={{height:36,borderRadius:9,border:"1px solid var(--line)",background:"var(--card2)",padding:"0 10px",fontSize:12}} value={source} onChange={e=>setSource(e.target.value)}>
+          <option value="">Barcha manbalar</option>
+          {sources.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <div className="filter-tabs">
+          <button className={`filter-tab ${view==="kanban"?"on":""}`} onClick={()=>setView("kanban")}><Layers size={12}/> Kanban</button>
+          <button className={`filter-tab ${view==="list"?"on":""}`} onClick={()=>setView("list")}><List size={12}/> Ro'yxat</button>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"lead"})}>
+          <Plus size={13}/> Yangi lid
         </button>
       </div>
       {view === "kanban" ? (
@@ -933,10 +988,10 @@ function Leads({ t, rows, setModal, loadAll }) {
             <div className="kb-col" key={st}>
               <div className={`kb-hd ${color}`}>
                 <span>{label}</span>
-                <span className={`pill pill-${color}`} style={{ fontSize:10 }}>{rows.filter(x => x.stage === st).length}</span>
+                <span className={`pill pill-${color}`} style={{ fontSize:10 }}>{filtRows.filter(x => x.stage === st).length}</span>
               </div>
               <div className="kb-list">
-                {rows.filter(x => x.stage === st).map(l => (
+                {filtRows.filter(x => x.stage === st).map(l => (
                   <div className="kb-card" key={l.id}>
                     <div className="kb-name">{l.full_name}</div>
                     <div className="kb-meta" style={{ display:"flex", alignItems:"center", gap:5 }}>
@@ -970,7 +1025,7 @@ function Leads({ t, rows, setModal, loadAll }) {
           <table className="tbl">
             <thead><tr><th>FISH</th><th>Tel</th><th>Manba</th><th>Kurs</th><th>Bosqich</th><th>Sana</th><th>Amal</th></tr></thead>
             <tbody>
-              {rows.map(l => (
+              {filtRows.map(l => (
                 <tr key={l.id} className="tbl-row">
                   <td><b>{l.full_name}</b></td><td>{l.phone || "—"}</td><td>{l.source || "—"}</td>
                   <td>{l.interested_course || "—"}</td>
@@ -982,7 +1037,7 @@ function Leads({ t, rows, setModal, loadAll }) {
                   </div></td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={7}><Empty text="Lidlar yo'q" icon="📣" /></td></tr>}
+              {!filtRows.length && <tr><td colSpan={7}><Empty text={search||source?"Natija topilmadi":"Lidlar yo'q"} icon="📣" /></td></tr>}
             </tbody>
           </table>
         </Card>

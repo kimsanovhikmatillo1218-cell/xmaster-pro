@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   UserPlus, Download, Eye, Pencil, Trash2,
-  Users, TrendingUp, TrendingDown, ChevronDown
+  Users, TrendingUp, TrendingDown, Search, X, SlidersHorizontal, ChevronDown
 } from "lucide-react";
 import { supabase as db } from "../lib/supabase.js";
 import { Person, Pill, StatusPill, ProgressBar, Empty, Card, useToast, useConfirm } from "../components/ui/index.jsx";
@@ -11,13 +11,31 @@ import { PER_PAGE } from "../lib/constants.js";
 export default function Students({ t, rows, data, setModal, setDetail, loadAll }) {
   const toast   = useToast();
   const confirm = useConfirm();
-  const [filter,  setFilter]  = useState("active");
-  const [pageNum, setPageNum] = useState(1);
+  const searchRef = useRef(null);
 
-  const filtered = useMemo(() =>
-    filter === "all" ? rows : rows.filter(s => (s.status || "active") === filter),
-    [rows, filter]
-  );
+  const [filter,    setFilter]    = useState("active");
+  const [pageNum,   setPageNum]   = useState(1);
+  const [search,    setSearch]    = useState("");
+  const [groupFilt, setGroupFilt] = useState("");
+  const [sortBy,    setSortBy]    = useState("name"); // name | balance | att
+  const [showFilt,  setShowFilt]  = useState(false);
+
+  const groups = useMemo(()=>[...new Set((rows||[]).map(s=>s.group_name).filter(Boolean))].sort(),[rows]);
+
+  const filtered = useMemo(() => {
+    let r = filter === "all" ? rows : rows.filter(s => (s.status || "active") === filter);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      r = r.filter(s => [s.full_name, s.phone, s.parent_phone, s.group_name].join(" ").toLowerCase().includes(q));
+    }
+    if (groupFilt) r = r.filter(s => s.group_name === groupFilt);
+    if (sortBy === "balance") r = [...r].sort((a,b) => Number(a.balance||0) - Number(b.balance||0));
+    if (sortBy === "att") {
+      const rate = name => { const rows2=(data.attendance||[]).filter(a=>a.student_name===name); return rows2.length?Math.round(rows2.filter(a=>a.status==="present").length/rows2.length*100):0; };
+      r = [...r].sort((a,b) => rate(a.full_name) - rate(b.full_name));
+    }
+    return r;
+  }, [rows, filter, search, groupFilt, sortBy, data.attendance]);
   const paged   = filtered.slice(0, pageNum * PER_PAGE);
   const hasMore = filtered.length > paged.length;
 
@@ -76,28 +94,80 @@ export default function Students({ t, rows, data, setModal, setDetail, loadAll }
         ))}
       </div>
 
-      {/* ── Toolbar ─────────────────────────────────────────────── */}
-      <div className="page-toolbar">
-        <div className="filter-tabs">
-          {TABS.map(({ v, l }) => (
-            <button key={v} className={`filter-tab ${filter === v ? "on" : ""}`}
-              onClick={() => { setFilter(v); setPageNum(1); }}>
-              {l}
-              <span className="filter-count">
-                {v === "all" ? rows.length : rows.filter(s => (s.status || "active") === v).length}
-              </span>
-            </button>
-          ))}
+      {/* ── Search + Toolbar ─────────────────────────────────────── */}
+      <div className="search-toolbar">
+        {/* Search */}
+        <div className="search-box-main">
+          <Search size={14} className="sb-ico"/>
+          <input
+            ref={searchRef}
+            className="sb-input"
+            placeholder="Ism, telefon, guruh bo'yicha qidirish..."
+            value={search}
+            onChange={e=>{ setSearch(e.target.value); setPageNum(1); }}
+          />
+          {search && <button className="sb-clear-btn" onClick={()=>{ setSearch(""); searchRef.current?.focus(); }}><X size={13}/></button>}
         </div>
+
+        {/* Filter toggle */}
+        <button className={`btn btn-ghost btn-sm ${showFilt?"active":""}`} onClick={()=>setShowFilt(!showFilt)}>
+          <SlidersHorizontal size={13}/> Filtr
+          {(groupFilt||sortBy!=="name") && <span style={{width:6,height:6,borderRadius:"50%",background:"var(--brand)",display:"inline-block",marginLeft:2}}/>}
+        </button>
+
         <div className="toolbar-right">
-          <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(filtered, "talabalar")}>
-            <Download size={13} /> Excel
+          <button className="btn btn-ghost btn-sm" onClick={()=>exportCSV(filtered,"talabalar")}>
+            <Download size={13}/> Excel
           </button>
-          <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "student" })}>
-            <UserPlus size={13} /> {t.addStudent}
+          <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:"student"})}>
+            <UserPlus size={13}/> {t.addStudent}
           </button>
         </div>
       </div>
+
+      {/* Status tabs */}
+      <div className="filter-tabs-row">
+        {TABS.map(({v,l})=>(
+          <button key={v} className={`filter-tab ${filter===v?"on":""}`}
+            onClick={()=>{ setFilter(v); setPageNum(1); }}>
+            {l}
+            <span className="filter-count">
+              {v==="all"?rows.length:rows.filter(s=>(s.status||"active")===v).length}
+            </span>
+          </button>
+        ))}
+        {search && (
+          <span style={{fontSize:11,color:"var(--t4)",marginLeft:"auto",alignSelf:"center"}}>
+            {filtered.length} natija
+          </span>
+        )}
+      </div>
+
+      {/* Expanded filter panel */}
+      {showFilt && (
+        <div className="filter-panel">
+          <div className="fp-item">
+            <label className="fp-label">Guruh bo'yicha</label>
+            <select className="fp-sel" value={groupFilt} onChange={e=>{setGroupFilt(e.target.value);setPageNum(1);}}>
+              <option value="">Barcha guruhlar</option>
+              {groups.map(g=><option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div className="fp-item">
+            <label className="fp-label">Saralash</label>
+            <select className="fp-sel" value={sortBy} onChange={e=>setSortBy(e.target.value)}>
+              <option value="name">Ism bo'yicha</option>
+              <option value="balance">Balans (kamidan)</option>
+              <option value="att">Davomat (kamidan)</option>
+            </select>
+          </div>
+          {(groupFilt||sortBy!=="name") && (
+            <button className="btn btn-ghost btn-xs" onClick={()=>{ setGroupFilt(""); setSortBy("name"); }}>
+              <X size={11}/> Tozalash
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Table ───────────────────────────────────────────────── */}
       <Card>
