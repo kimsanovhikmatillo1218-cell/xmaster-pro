@@ -2,6 +2,7 @@
 import {
   useCallback, useEffect, useMemo, useReducer, useRef, useState
 } from "react";
+import Login from "./pages/Login.jsx";
 import {
   LayoutDashboard, Users, GraduationCap, UserCircle, CreditCard,
   ClipboardCheck, Calendar, FileText, BookOpen, Star,
@@ -45,6 +46,15 @@ import {
 
 import "./index.css";
 
+/* ── Role permissions ────────────────────────────────────────────── */
+const ROLE_PAGES = {
+  superadmin: ["dash","students","groups","teachers","finance","attend","sched","tests","homework","grades","library","resources","leads","tasks","reports","settings"],
+  admin:      ["dash","students","groups","teachers","finance","attend","sched","tests","homework","grades","library","resources","leads","tasks","reports","settings"],
+  teacher:    ["dash","groups","attend","sched","tests","homework","grades","library","resources","tasks","reports"],
+  reception:  ["dash","students","groups","finance","attend","leads","tasks"],
+};
+const canAccess = (role, pageId) => (ROLE_PAGES[role] || ROLE_PAGES.reception).includes(pageId);
+
 /* ── Page definitions with Lucide icons ─────────────────────────── */
 const PAGES = [
   { id:"dash",      key:"dashboard",  Icon:LayoutDashboard, group:"main" },
@@ -76,17 +86,23 @@ function dataReducer(state, action) {
 
 /* ── Root ────────────────────────────────────────────────────────── */
 export default function App() {
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("xm_user")); } catch { return null; }
+  });
+
+  if (!user) return <Login onLogin={u => setUser(u)} />;
+
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <AppInner />
+        <AppInner user={user} onLogout={() => { localStorage.removeItem("xm_user"); setUser(null); }} />
       </ConfirmProvider>
     </ToastProvider>
   );
 }
 
 /* ── AppInner ────────────────────────────────────────────────────── */
-function AppInner() {
+function AppInner({ user, onLogout }) {
   const toast = useToast();
   const [lang,     setLang]     = useState(() => localStorage.getItem("xm_lang")  || "uz");
   const [theme,    setTheme]    = useState(() => localStorage.getItem("xm_theme") || "light");
@@ -167,7 +183,8 @@ function AppInner() {
   }, [data.students, dq]);
 
   const nav    = useCallback(id => { setPage(id); setSub("home"); }, []);
-  const shared = { t, data, stats, sub, setSub, setModal, setDetail, loadAll, nav, markAllRead };
+  const role   = user?.role || "reception";
+  const shared = { t, data, stats, sub, setSub, setModal, setDetail, loadAll, nav, markAllRead, role, user };
 
   const PAGE_GROUPS = [
     { label: "ANA",    pages: ["dash","students","groups","teachers","finance"] },
@@ -188,7 +205,7 @@ function AppInner() {
           <div key={grp.label} className="ib-group">
             {grp.pages.map(pid => {
               const p = PAGES.find(x => x.id === pid);
-              if (!p) return null;
+              if (!p || !canAccess(role, pid)) return null;
               const badge = p.dot ? stats.unread : 0;
               const IcoEl = p.Icon;
               return (
@@ -233,7 +250,7 @@ function AppInner() {
               <div className="sb-section">{grp.label}</div>
               {grp.pages.map(pid => {
                 const p = PAGES.find(x => x.id === pid);
-                if (!p) return null;
+                if (!p || !canAccess(role, pid)) return null;
                 const IcoEl = p.Icon;
                 const badge =
                   p.dot ? stats.unread :
@@ -254,14 +271,24 @@ function AppInner() {
         </nav>
 
         <div className="sb-footer">
-          <div className="sb-avatar">
-            {((data.settings || [])[0]?.center_name || "X")[0].toUpperCase()}
+          <div className="sb-avatar" style={{ background: user?.color || "var(--brand)", flexShrink:0 }}>
+            {(user?.name || user?.username || "X")[0].toUpperCase()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="sb-footer-name">{(data.settings || [])[0]?.center_name || "X-MASTER Pro"}</div>
-            <div className="sb-footer-role"><span className="online-dot" /> Superadmin</div>
+            <div className="sb-footer-name">{user?.name || user?.username || "Admin"}</div>
+            <div className="sb-footer-role"><span className="online-dot" /> {user?.role || "superadmin"}</div>
           </div>
-          <Shield size={14} style={{ color: "rgba(255,255,255,.25)", flexShrink: 0 }} />
+          <button
+            onClick={onLogout}
+            title="Chiqish"
+            style={{ background:"transparent", border:"none", cursor:"pointer", color:"rgba(255,255,255,.3)", padding:"4px", borderRadius:"6px", display:"flex", alignItems:"center", flexShrink:0, transition:"color .15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+            onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,.3)"}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
       </aside>
 
@@ -290,45 +317,98 @@ function AppInner() {
               <option value="ru">🇷🇺 RU</option>
               <option value="en">🇬🇧 EN</option>
             </select>
-            <div className="tb-branch">
-              <span className="tb-branch-dot" />
-              <Building2 size={12} style={{ color: "var(--t4)" }} />
-              <span>{(data.branches || [])[0]?.name || "Asosiy filial"}</span>
-            </div>
+            {(data.branches || []).length > 1 ? (
+              <select
+                className="lang-sel"
+                style={{ maxWidth: 130 }}
+                value={(data.branches || [])[0]?.id || ""}
+                onChange={() => {}}
+                title="Filial tanlash"
+              >
+                {(data.branches || []).map(b => (
+                  <option key={b.id} value={b.id}>🏢 {b.name}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="tb-branch">
+                <span className="tb-branch-dot" />
+                <Building2 size={12} style={{ color: "var(--t4)" }} />
+                <span>{(data.branches || [])[0]?.name || "Asosiy filial"}</span>
+              </div>
+            )}
             <button className="tb-notif-btn" onClick={() => { nav("dash"); setSub("notifications"); }}
               title="Bildirishnomalar">
               <Bell size={15} />
               {stats.unread > 0 && <span className="tb-notif-count">{stats.unread}</span>}
             </button>
-            <div className="tb-user" title="Profil">
-              {((data.settings || [])[0]?.center_name || "X")[0].toUpperCase()}
+            <div className="tb-user" title={`${user?.name} · ${role}`}
+              style={{ background: user?.color ? undefined : "var(--brand-g)" }}>
+              {(user?.name || "A")[0].toUpperCase()}
             </div>
           </div>
         </header>
 
         <div className="content">
           {loading && <div className="load-bar"><div className="load-prog" /></div>}
-          {page === "dash"      && <Dashboard  {...shared} filteredStudents={filteredStudents} />}
-          {page === "students"  && <Students   {...shared} rows={filteredStudents} />}
-          {page === "groups"    && <Groups     {...shared} rows={data.study_groups || []} />}
-          {page === "teachers"  && <Teachers   {...shared} rows={data.teachers || []} />}
-          {page === "finance"   && <Finance    {...shared} />}
-          {page === "attend"    && <Attendance {...shared} />}
-          {page === "sched"     && <Schedule   {...shared} />}
-          {page === "tests"     && <Tests      {...shared} />}
-          {page === "homework"  && <Homework   {...shared} />}
-          {page === "grades"    && <Grades     {...shared} />}
-          {page === "library"   && <Library    {...shared} />}
-          {page === "resources" && <Resources  {...shared} />}
-          {page === "leads"     && <Leads      {...shared} rows={data.leads || []} />}
-          {page === "tasks"     && <Tasks      {...shared} />}
-          {page === "reports"   && <Reports    {...shared} />}
-          {page === "settings"  && <Settings   {...shared} />}
+          {loading && page === "dash" && (
+            <div className="skeleton-dashboard">
+              <div className="skel-strip">
+                {[1,2,3,4].map(i => <div key={i} className="skel-kpi" />)}
+              </div>
+              <div className="skel-grid">
+                <div className="skel-card tall" /><div className="skel-card" /><div className="skel-card" />
+              </div>
+            </div>
+          )}
+          {/* Role-based page guard */}
+          {!canAccess(role, page) ? (
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60vh", gap:16, opacity:.6 }}>
+              <div style={{ fontSize:48 }}>🔒</div>
+              <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:18, color:"var(--t3)" }}>Kirish taqiqlangan</div>
+              <div style={{ fontSize:13, color:"var(--t4)" }}>Bu sahifaga sizning rolingiz kirish huquqiga ega emas</div>
+            </div>
+          ) : <>
+            {page === "dash"      && <Dashboard  {...shared} filteredStudents={filteredStudents} />}
+            {page === "students"  && <Students   {...shared} rows={filteredStudents} />}
+            {page === "groups"    && <Groups     {...shared} rows={data.study_groups || []} />}
+            {page === "teachers"  && <Teachers   {...shared} rows={data.teachers || []} />}
+            {page === "finance"   && <Finance    {...shared} />}
+            {page === "attend"    && <Attendance {...shared} />}
+            {page === "sched"     && <Schedule   {...shared} />}
+            {page === "tests"     && <Tests      {...shared} />}
+            {page === "homework"  && <Homework   {...shared} />}
+            {page === "grades"    && <Grades     {...shared} />}
+            {page === "library"   && <Library    {...shared} />}
+            {page === "resources" && <Resources  {...shared} />}
+            {page === "leads"     && <Leads      {...shared} rows={data.leads || []} />}
+            {page === "tasks"     && <Tasks      {...shared} />}
+            {page === "reports"   && <Reports    {...shared} />}
+            {page === "settings"  && <Settings   {...shared} />}
+          </>}
         </div>
       </main>
 
       {modal  && <ModalForm    modal={modal}   t={t} data={data} close={() => setModal(null)}  loadAll={loadAll} />}
       {detail && <DetailDrawer detail={detail} t={t} data={data} close={() => setDetail(null)} setModal={setModal} loadAll={loadAll} />}
+
+      {/* ── Mobile Bottom Navigation ─────────────────────────────── */}
+      <nav className="mob-nav">
+        {[
+          { id:"dash",     Icon:LayoutDashboard, label:"Bosh" },
+          { id:"students", Icon:Users,           label:"Talabalar" },
+          { id:"finance",  Icon:CreditCard,      label:"Moliya" },
+          { id:"attend",   Icon:ClipboardCheck,  label:"Davomat" },
+          { id:"leads",    Icon:Target,          label:"CRM", dot:true },
+        ].map(({ id, Icon, label, dot }) => (
+          <button key={id} className={`mob-nav-btn ${page === id ? "on" : ""}`} onClick={() => nav(id)}>
+            <div style={{ position:"relative", display:"inline-flex" }}>
+              <Icon size={21} strokeWidth={page===id ? 2.2 : 1.8} />
+              {dot && stats.unread > 0 && <span className="mob-nav-dot" />}
+            </div>
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }
@@ -514,11 +594,15 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
   );
 }
 
-function Attendance({ t, data, setModal }) {
-  const [selGroup, setSelGroup] = useState("");
+function Attendance({ t, data, setModal, loadAll }) {
+  const toast = useToast();
+  const [selGroup,   setSelGroup]   = useState("");
+  const [bulkDate,   setBulkDate]   = useState(new Date().toISOString().slice(0,10));
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   const groups   = useMemo(() => [...new Set((data.students || []).map(s => s.group_name).filter(Boolean))], [data.students]);
   const students = useMemo(() =>
-    (selGroup ? (data.students || []).filter(s => s.group_name === selGroup) : (data.students || [])).slice(0, 16),
+    (selGroup ? (data.students || []).filter(s => s.group_name === selGroup) : (data.students || [])).slice(0, 30),
     [data.students, selGroup]);
   const dates = useMemo(() => {
     const all = [...new Set((data.attendance || []).map(a => a.lesson_date).filter(Boolean))].sort().slice(-7);
@@ -526,36 +610,84 @@ function Attendance({ t, data, setModal }) {
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d.toISOString().slice(0, 10); });
   }, [data.attendance]);
   const getStatus = (name, date) => (data.attendance || []).find(a => a.student_name === name && a.lesson_date === date)?.status || null;
+
+  // Bulk davomat — guruhning barcha talabalarini bir status bilan belgilash
+  const bulkMark = async (status) => {
+    if (!selGroup) return toast("Avval guruh tanlang", "warning");
+    const groupStudents = (data.students || []).filter(s => s.group_name === selGroup);
+    if (!groupStudents.length) return toast("Guruhda talabalar yo'q", "warning");
+    setBulkSaving(true);
+    try {
+      const rows = groupStudents.map(s => ({
+        student_name: s.full_name,
+        group_name:   selGroup,
+        lesson_date:  bulkDate,
+        status,
+      }));
+      // Mavjud yozuvlarni o'chir, keyin yangi qo'sh
+      await db.from("attendance")
+        .delete()
+        .eq("group_name", selGroup)
+        .eq("lesson_date", bulkDate);
+      const { error } = await db.from("attendance").insert(rows);
+      if (error) throw error;
+      const icons = { present:"✅", absent:"❌", late:"⚠️", excused:"📋" };
+      toast(`${icons[status] || "✓"} ${groupStudents.length} talaba — ${status === "present" ? "Keldi" : status === "absent" ? "Kelmadi" : status === "late" ? "Kechikdi" : "Sababli"}`);
+      await loadAll();
+    } catch(e) { toast(e.message, "error"); }
+    finally { setBulkSaving(false); }
+  };
+
   return (
     <div className="page-fade">
-      <div className="pg-toolbar">
-        <select className="sel-ctrl" value={selGroup} onChange={e => setSelGroup(e.target.value)}>
-          <option value="">Barcha guruhlar</option>
-          {groups.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "attendance" })}>+ Davomat</button>
+      {/* ── Bulk toolbar ── */}
+      <div style={{ background:"var(--card)", border:"1px solid var(--line)", borderRadius:"var(--r)", padding:"14px 18px", marginBottom:14, boxShadow:"var(--sh1)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+          <select style={{ flex:"0 0 160px" }} value={selGroup} onChange={e => setSelGroup(e.target.value)}>
+            <option value="">Barcha guruhlar</option>
+            {groups.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+          <input type="date" value={bulkDate} onChange={e => setBulkDate(e.target.value)}
+            style={{ flex:"0 0 140px" }} />
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            <span style={{ fontSize:11, color:"var(--t4)", fontWeight:600, alignSelf:"center" }}>Barchasi:</span>
+            {[
+              { s:"present", l:"✅ Keldi",   c:"var(--green)" },
+              { s:"absent",  l:"❌ Kelmadi", c:"var(--red)"   },
+              { s:"late",    l:"⚠️ Kechikdi",c:"var(--yellow)"},
+            ].map(({s,l,c}) => (
+              <button key={s} className="btn btn-ghost btn-sm" disabled={bulkSaving}
+                style={{ borderColor:c, color:c }}
+                onClick={() => bulkMark(s)}>
+                {bulkSaving ? <RefreshCw size={11} className="spin"/> : l}
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-primary btn-sm" style={{ marginLeft:"auto" }}
+            onClick={() => setModal({ type: "attendance" })}>+ Davomat</button>
+        </div>
       </div>
       <Card className="pad">
         <div style={{ overflowX: "auto" }}>
           <div className="att-grid" style={{ gridTemplateColumns: `180px repeat(${dates.length},1fr) 56px` }}>
-            <div className="att-hdr left">FISH</div>
-            {dates.map(d => <div key={d} className="att-th">{new Date(d + "T00:00").getDate()}<br /><span style={{ fontSize: 8, opacity: .6 }}>{["Ya","Du","Se","Ch","Pa","Sh","Ya"][new Date(d + "T00:00").getDay()]}</span></div>)}
-            <div className="att-th">%</div>
-            {students.flatMap(s => {
+            <div key="hdr-name" className="att-hdr left">FISH</div>
+            {dates.map((d, di) => <div key={`hdr-d-${di}`} className="att-th">{new Date(d + "T00:00").getDate()}<br /><span style={{ fontSize: 8, opacity: .6 }}>{["Ya","Du","Se","Ch","Pa","Sh","Ya"][new Date(d + "T00:00").getDay()]}</span></div>)}
+            <div key="hdr-pct" className="att-th">%</div>
+            {students.flatMap((s, si) => {
               const statuses = dates.map(d => getStatus(s.full_name, d));
               const known    = statuses.filter(x => x !== null);
               const rate     = known.length ? Math.round(known.filter(x => x === "present").length / known.length * 100) : null;
               return [
-                <div key={s.id + "n"} className="att-name" title={s.full_name}>{s.full_name}</div>,
-                ...dates.map((d, i) => {
-                  const st = statuses[i];
-                  return <div key={d} className={`att-dot ${st === "present" ? "ad-g" : st === "absent" ? "ad-r" : st === "late" ? "ad-y" : ""}`}
+                <div key={`r${si}-name`} className="att-name" title={s.full_name}>{s.full_name}</div>,
+                ...dates.map((d, di) => {
+                  const st = statuses[di];
+                  return <div key={`r${si}-d${di}`} className={`att-dot ${st === "present" ? "ad-g" : st === "absent" ? "ad-r" : st === "late" ? "ad-y" : ""}`}
                     style={{ opacity: st ? 1 : .18, cursor: "pointer" }}
                     onClick={() => setModal({ type: "attendance", row: { student_name: s.full_name, lesson_date: d, group_name: s.group_name } })}>
                     {st === "present" ? "✓" : st === "absent" ? "✗" : st === "late" ? "!" : "·"}
                   </div>;
                 }),
-                <div key={s.id + "p"} className={`${rate !== null ? (rate > 75 ? "green" : "red") : "c-muted"} att-pct-cell`}>{rate !== null ? `${rate}%` : "—"}</div>
+                <div key={`r${si}-pct`} className={`${rate !== null ? (rate > 75 ? "green" : "red") : "c-muted"} att-pct-cell`}>{rate !== null ? `${rate}%` : "—"}</div>
               ];
             })}
           </div>
@@ -595,7 +727,7 @@ function Schedule({ data, setModal }) {
               ...days.map(day => {
                 const cells = (data.schedules || []).filter(s => s.day_name === day && s.start_time === tm);
                 return (
-                  <div key={day} className={`sch-c ${cells.length ? colorMap[cells[0]?.group_name] || "sc-bl" : "sc-mt"}`}>
+                  <div key={`${tm}-${day}`} className={`sch-c ${cells.length ? colorMap[cells[0]?.group_name] || "sc-bl" : "sc-mt"}`}>
                     {cells.map((c, i) => <div key={i}><b style={{ fontSize: 10 }}>{c.group_name}</b><div style={{ opacity: .7, fontSize: 9 }}>{c.room && `X${c.room}`}{c.teacher_name && ` · ${c.teacher_name.split(" ")[0]}`}</div></div>)}
                   </div>
                 );
@@ -784,6 +916,114 @@ function Grades({ t, data, setModal, loadAll }) {
   );
 }
 
+/* ── SVG Chart helpers ───────────────────────────────────────────── */
+function SvgBarChart({ data, height = 160, barW = 28, gap = 12 }) {
+  if (!data?.length) return <Empty text="Ma'lumot yo'q" />;
+  const max = Math.max(...data.flatMap(d => [d.a || 0, d.b || 0]), 1);
+  const totalW = data.length * (barW * 2 + gap + 10);
+  return (
+    <svg width="100%" viewBox={`0 0 ${Math.max(totalW, 300)} ${height + 32}`} style={{ overflow: "visible" }}>
+      {data.map((d, i) => {
+        const x = i * (barW * 2 + gap + 10) + 5;
+        const ha = Math.round((d.a || 0) / max * height);
+        const hb = Math.round((d.b || 0) / max * height);
+        return (
+          <g key={i}>
+            {/* Bar A (income) */}
+            <rect x={x} y={height - ha} width={barW} height={ha || 2}
+              rx={4} fill="url(#gIncome)" />
+            {ha > 16 && <text x={x + barW / 2} y={height - ha - 4} textAnchor="middle"
+              fontSize={8} fill="var(--green)" fontWeight={700}>{short(d.a)}</text>}
+            {/* Bar B (expense) */}
+            <rect x={x + barW + 3} y={height - hb} width={barW} height={hb || 2}
+              rx={4} fill="url(#gExpense)" />
+            {hb > 16 && <text x={x + barW + 3 + barW / 2} y={height - hb - 4} textAnchor="middle"
+              fontSize={8} fill="var(--red)" fontWeight={700}>{short(d.b)}</text>}
+            {/* Label */}
+            <text x={x + barW} y={height + 14} textAnchor="middle"
+              fontSize={9} fill="var(--t4)" fontWeight={600}>{d.label}</text>
+          </g>
+        );
+      })}
+      <defs>
+        <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#10b981" /><stop offset="100%" stopColor="#34d399" stopOpacity=".6" />
+        </linearGradient>
+        <linearGradient id="gExpense" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ef4444" /><stop offset="100%" stopColor="#f87171" stopOpacity=".6" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function SvgLineChart({ points, height = 120, color = "#4f6ef7" }) {
+  if (!points?.length || points.length < 2) return <Empty text="Yetarli ma'lumot yo'q" />;
+  const max = Math.max(...points.map(p => p.v), 1);
+  const w = 280, pad = 10;
+  const step = (w - pad * 2) / (points.length - 1);
+  const toY = v => height - pad - Math.round(v / max * (height - pad * 2));
+  const coords = points.map((p, i) => ({ x: pad + i * step, y: toY(p.v), ...p }));
+  const pathD = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
+  const areaD = `${pathD} L ${coords[coords.length - 1].x} ${height} L ${pad} ${height} Z`;
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${height + 20}`} style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id={`lg-${color.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity=".25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Grid lines */}
+      {[0.25, 0.5, 0.75, 1].map(f => (
+        <line key={f} x1={pad} y1={toY(max * f)} x2={w - pad} y2={toY(max * f)}
+          stroke="var(--line)" strokeWidth={1} strokeDasharray="4 4" />
+      ))}
+      {/* Area fill */}
+      <path d={areaD} fill={`url(#lg-${color.replace("#","")})`} />
+      {/* Line */}
+      <path d={pathD} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+      {/* Dots + labels */}
+      {coords.map((c, i) => (
+        <g key={i}>
+          <circle cx={c.x} cy={c.y} r={3.5} fill={color} stroke="var(--card)" strokeWidth={2} />
+          <text x={c.x} y={height + 16} textAnchor="middle" fontSize={8.5} fill="var(--t4)" fontWeight={600}>{c.label}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function SvgDonut({ slices, size = 100 }) {
+  const r = 36, cx = size / 2, cy = size / 2, stroke = 14;
+  const total = slices.reduce((s, x) => s + x.v, 0) || 1;
+  let offset = 0;
+  const circ = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--line)" strokeWidth={stroke} />
+      {slices.map((s, i) => {
+        const dash = (s.v / total) * circ;
+        const gap  = circ - dash;
+        const el = (
+          <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+            stroke={s.color} strokeWidth={stroke}
+            strokeDasharray={`${dash} ${gap}`}
+            strokeDashoffset={-offset}
+            strokeLinecap="round"
+            style={{ transform: "rotate(-90deg)", transformOrigin: "center", transition: "stroke-dasharray .5s" }}
+          />
+        );
+        offset += dash;
+        return el;
+      })}
+      <text x={cx} y={cy + 4} textAnchor="middle" fontSize={13} fontWeight={900} fill="var(--t1)">
+        {Math.round(slices[0]?.v / total * 100) || 0}%
+      </text>
+    </svg>
+  );
+}
+
 function Reports({ t, data, stats, sub, setSub }) {
   const byMonth = useMemo(() => {
     const map = {};
@@ -791,117 +1031,168 @@ function Reports({ t, data, stats, sub, setSub }) {
     (data.expenses || []).forEach(r => { if (!r.created_at) return; const m = r.created_at.slice(0, 7); if (!map[m]) map[m] = { income: 0, expense: 0 }; map[m].expense += Number(r.amount || 0); });
     return Object.entries(map).sort().slice(-6);
   }, [data]);
-  const maxI = byMonth.length ? Math.max(...byMonth.map(([, v]) => v.income), 1) : 1;
+
+  const barData = byMonth.map(([m, v]) => ({ label: m.slice(5), a: v.income, b: v.expense }));
+
+  const growthPoints = useMemo(() => {
+    const map = {};
+    (data.students || []).forEach(s => { if (!s.created_at) return; const m = s.created_at.slice(0, 7); map[m] = (map[m] || 0) + 1; });
+    return Object.entries(map).sort().slice(-7).map(([m, v]) => ({ label: m.slice(5), v }));
+  }, [data.students]);
+
+  const leadSources = useMemo(() => {
+    const map = {};
+    (data.leads || []).forEach(l => { const s = l.source || "other"; map[s] = (map[s] || 0) + 1; });
+    const colors = { instagram:"#e1306c", telegram:"#24a1de", facebook:"#1877f2", friend:"#10b981", call:"#f59e0b", other:"#6366f1" };
+    return Object.entries(map).map(([k, v]) => ({ label: k, v, color: colors[k] || "#94a3b8" }));
+  }, [data.leads]);
+
+  const attGroups = useMemo(() => {
+    return [...new Set((data.attendance || []).map(a => a.group_name).filter(Boolean))].map(grp => {
+      const rows = (data.attendance || []).filter(a => a.group_name === grp);
+      return { label: grp, v: attRate(rows) };
+    });
+  }, [data.attendance]);
 
   return (
     <div className="page-fade">
       <div className="pg-toolbar">
         <div className="tabs">
-          {[["home","Moliyaviy"],["growth","O'sish"],["attendance","Davomat"],["teachers","O'qituvchilar"]].map(([id, label]) => (
+          {[["home","💰 Moliya"],["growth","📈 O'sish"],["attendance","📋 Davomat"],["teachers","👨‍🏫 O'qituvchilar"]].map(([id, label]) => (
             <button key={id} className={`ftab ${sub === id ? "on" : ""}`} onClick={() => setSub(id)}>{label}</button>
           ))}
         </div>
         <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(data.payments, "hisobot")}>⇩ Excel</button>
       </div>
 
+      {/* ── MOLIYA ── */}
       {sub === "home" && (
-        <div className="g2">
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div className="g2">
+            <Mini title="Daromad" value={money(stats.income)} tone="green" />
+            <Mini title="Xarajat" value={money(stats.expense)} tone="red" />
+            <Mini title="Foyda"   value={money(stats.profit)} tone={stats.profit >= 0 ? "blue" : "red"} />
+            <Mini title="Qarz"    value={money(stats.debt)}   tone="red" />
+          </div>
           <Card className="pad">
-            <SectionHeader title="📈 Oylik daromad" />
-            {byMonth.map(([m, v]) => (
-              <div key={m} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11 }}>
-                  <span style={{ fontWeight: 700 }}>{m}</span>
-                  <span style={{ color: "var(--success)" }}>+{short(v.income)}</span>
-                </div>
-                <ProgressBar value={Math.round(v.income / maxI * 100)} color="green" />
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:4 }}>
+                📊 Oylik moliyaviy ko'rinish
               </div>
-            ))}
-            {!byMonth.length && <Empty text="Ma'lumot yo'q" />}
-          </Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div className="g2">
-              <Mini title="Daromad" value={money(stats.income)}  tone="green" />
-              <Mini title="Xarajat" value={money(stats.expense)} tone="red" />
-              <Mini title="Foyda"   value={money(stats.profit)}  tone={stats.profit >= 0 ? "blue" : "red"} />
-              <Mini title="Qarz"    value={money(stats.debt)}    tone="red" />
+              <div style={{ display:"flex", gap:14, fontSize:11, color:"var(--t4)" }}>
+                <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ width:10, height:10, borderRadius:3, background:"#10b981", display:"inline-block" }} /> Daromad
+                </span>
+                <span style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ width:10, height:10, borderRadius:3, background:"#ef4444", display:"inline-block" }} /> Xarajat
+                </span>
+              </div>
             </div>
+            {barData.length ? <SvgBarChart data={barData} /> : <Empty text="Ma'lumot yo'q" />}
+          </Card>
+          <Card className="pad">
+            <SectionHeader title="Ko'rsatkichlar" />
+            {[
+              ["Jami to'lovlar",`${(data.payments||[]).length} ta`],
+              ["Jami xarajatlar",`${(data.expenses||[]).length} ta`],
+              ["Qarzdorlar",`${stats.debtors} ta · ${money(stats.debt)}`],
+              ["Faol talabalar", stats.active],
+              ["Guruhlar", stats.groups],
+            ].map(([l, r]) => <div key={l} className="line"><span>{l}</span><b>{r}</b></div>)}
+          </Card>
+        </div>
+      )}
+
+      {/* ── O'SISH ── */}
+      {sub === "growth" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <Card className="pad">
+            <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:16 }}>
+              📈 Talabalar o'sish dinamikasi
+            </div>
+            <SvgLineChart points={growthPoints} color="#4f6ef7" />
+          </Card>
+          <div className="g2">
+            {/* Lead manbalari donut */}
             <Card className="pad">
-              <SectionHeader title="Ko'rsatkichlar" />
-              {[["Jami to'lovlar",`${(data.payments||[]).length} ta`],["Jami xarajatlar",`${(data.expenses||[]).length} ta`],["Qarzdorlar",`${stats.debtors} ta`],["Faol talabalar",stats.active],["Guruhlar",stats.groups]].map(([l, r]) => <div key={l} className="line"><span>{l}</span><b>{r}</b></div>)}
+              <div style={{ fontWeight:800, fontSize:13, marginBottom:14 }}>🎯 Lid manbalari</div>
+              {leadSources.length ? (
+                <div style={{ display:"flex", alignItems:"center", gap:20 }}>
+                  <SvgDonut slices={leadSources} size={110} />
+                  <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                    {leadSources.map(s => (
+                      <div key={s.label} style={{ display:"flex", alignItems:"center", gap:7, fontSize:11 }}>
+                        <span style={{ width:9, height:9, borderRadius:3, background:s.color, flexShrink:0 }} />
+                        <span style={{ color:"var(--t3)", fontWeight:600, textTransform:"capitalize" }}>{s.label}</span>
+                        <span style={{ marginLeft:"auto", fontWeight:800, color:"var(--t1)" }}>{s.v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : <Empty text="Lidlar yo'q" />}
+            </Card>
+            {/* Holat */}
+            <Card className="pad">
+              <div style={{ fontWeight:800, fontSize:13, marginBottom:14 }}>👥 Talabalar holati</div>
+              {[
+                ["Faol",      (data.students||[]).filter(s=>(s.status||"active")==="active").length, "#10b981"],
+                ["Muzlatilgan",(data.students||[]).filter(s=>s.status==="frozen").length,             "#f59e0b"],
+                ["Arxiv",     (data.students||[]).filter(s=>s.status==="archived").length,            "#94a3b8"],
+                ["Jami",      (data.students||[]).length,                                              "#4f6ef7"],
+              ].map(([l, v, c]) => (
+                <div key={l} className="line">
+                  <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ width:8, height:8, borderRadius:50, background:c, flexShrink:0 }} />{l}
+                  </span>
+                  <b style={{ color:c }}>{v}</b>
+                </div>
+              ))}
             </Card>
           </div>
         </div>
       )}
 
+      {/* ── DAVOMAT ── */}
       {sub === "attendance" && (
-        <div className="g2">
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card className="pad">
-            <SectionHeader title="Guruhlar bo'yicha" />
-            {[...new Set((data.attendance || []).map(a => a.group_name).filter(Boolean))].map(grp => {
-              const rows = (data.attendance || []).filter(a => a.group_name === grp);
-              const rate = attRate(rows);
-              return (
-                <div key={grp} style={{ marginBottom: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11 }}>
-                    <span style={{ fontWeight: 700 }}>{grp}</span>
-                    <span style={{ color: rate > 75 ? "var(--success)" : "var(--danger)" }}>{rate}%</span>
+            <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:16 }}>
+              📋 Guruhlar bo'yicha davomat
+            </div>
+            {attGroups.length ? (
+              <SvgLineChart points={attGroups.map(g => ({ label: g.label.slice(0,6), v: g.v }))} color="#10b981" />
+            ) : <Empty text="Ma'lumot yo'q" />}
+          </Card>
+          <div className="g2">
+            <Card className="pad">
+              <SectionHeader title="Guruhlar reytingi" />
+              {attGroups.sort((a,b)=>b.v-a.v).map(g => (
+                <div key={g.label} style={{ marginBottom:10 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5, fontSize:11 }}>
+                    <span style={{ fontWeight:700 }}>{g.label}</span>
+                    <span style={{ color: g.v>75 ? "var(--green)" : "var(--red)", fontWeight:800 }}>{g.v}%</span>
                   </div>
-                  <ProgressBar value={rate} color={rate > 75 ? "green" : "red"} />
+                  <div style={{ height:7, background:"var(--line)", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${g.v}%`, background: g.v>75 ? "var(--green)" : "var(--red)", borderRadius:4, transition:"width .4s" }} />
+                  </div>
                 </div>
-              );
-            })}
-          </Card>
-          <Card className="pad">
-            <SectionHeader title="Statistika" />
-            {[["O'rtacha",`${attRate(data.attendance||[])}%`],["Kelgan",(data.attendance||[]).filter(a=>a.status==="present").length],["Kelmagan",(data.attendance||[]).filter(a=>a.status==="absent").length],["Kechikkan",(data.attendance||[]).filter(a=>a.status==="late").length]].map(([l, r]) => <div key={l} className="line"><span>{l}</span><b>{r}</b></div>)}
-          </Card>
+              ))}
+              {!attGroups.length && <Empty text="Ma'lumot yo'q" />}
+            </Card>
+            <Card className="pad">
+              <SectionHeader title="Umumiy statistika" />
+              {[
+                ["O'rtacha",  `${attRate(data.attendance||[])}%`],
+                ["Keldi",     (data.attendance||[]).filter(a=>a.status==="present").length],
+                ["Kelmadi",   (data.attendance||[]).filter(a=>a.status==="absent").length],
+                ["Kechikdi",  (data.attendance||[]).filter(a=>a.status==="late").length],
+                ["Sababli",   (data.attendance||[]).filter(a=>a.status==="excused").length],
+              ].map(([l, r]) => <div key={l} className="line"><span>{l}</span><b>{r}</b></div>)}
+            </Card>
+          </div>
         </div>
       )}
 
-      {sub === "teachers" && (
-        <Card>
-          <table className="tbl">
-            <thead><tr><th>O'qituvchi</th><th>Fan</th><th>Guruhlar</th><th>Talabalar</th><th>Davomat</th><th>Maosh</th></tr></thead>
-            <tbody>
-              {(data.teachers || []).map(tc => {
-                const groups   = (data.study_groups || []).filter(g => g.teacher_name === tc.full_name);
-                const students = (data.students || []).filter(s => groups.some(g => g.name === s.group_name));
-                const attRows  = (data.attendance || []).filter(a => groups.some(g => g.name === a.group_name));
-                return (
-                  <tr key={tc.id} className="tbl-row">
-                    <td><Person name={tc.full_name} sub={tc.phone} /></td>
-                    <td>{tc.subject ? <Pill>{tc.subject}</Pill> : "—"}</td>
-                    <td><span className="badge">{groups.length}</span></td>
-                    <td><span className="badge">{students.length}</span></td>
-                    <td><span style={{ color: attRate(attRows) > 75 ? "var(--success)" : "var(--danger)" }}>{attRate(attRows)}%</span></td>
-                    <td className="money green">{money(tc.salary_value)}</td>
-                  </tr>
-                );
-              })}
-              {!data.teachers?.length && <tr><td colSpan={6}><Empty text="O'qituvchilar yo'q" /></td></tr>}
-            </tbody>
-          </table>
-        </Card>
-      )}
-
-      {sub === "growth" && (
-        <div className="g2">
-          <Card className="pad">
-            <SectionHeader title="👥 Talabalar o'sishi" />
-            {Object.entries((data.students || []).reduce((m, s) => { if (!s.created_at) return m; const k = s.created_at.slice(0, 7); m[k] = (m[k] || 0) + 1; return m; }, {})).sort().slice(-6).map(([m, v]) => (
-              <div key={m} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, fontSize: 11 }}><span>{m}</span><span style={{ color: "var(--success)" }}>+{v}</span></div>
-                <ProgressBar value={v} color="blue" />
-              </div>
-            ))}
-          </Card>
-          <Card className="pad">
-            <SectionHeader title="Holat" />
-            {[["Faol",(data.students||[]).filter(s=>(s.status||"active")==="active").length],["Muzlatilgan",(data.students||[]).filter(s=>s.status==="frozen").length],["Arxiv",(data.students||[]).filter(s=>s.status==="archived").length],["Jami",(data.students||[]).length]].map(([l, r]) => <div key={l} className="line"><span>{l}</span><b>{r}</b></div>)}
-          </Card>
-        </div>
-      )}
     </div>
   );
 }
@@ -1053,6 +1344,114 @@ function Settings({ t, data, setModal, loadAll }) {
           ))}
         </div>
       </Card>
+
+      {/* Telegram sozlamalari — to'liq 2 ustun */}
+      <TelegramSettings data={data} toast={toast} />
+    </div>
+  );
+}
+
+/* ── Telegram Settings ───────────────────────────────────────────── */
+function TelegramSettings({ data, toast }) {
+  const [token,   setToken]   = useState(localStorage.getItem("xm_tg_token")  || "");
+  const [chatId,  setChatId]  = useState(localStorage.getItem("xm_tg_chat")   || "");
+  const [msg,     setMsg]     = useState("Salom! Bu X-MASTER Pro test xabari 👋");
+  const [sending, setSending] = useState(false);
+  const [status,  setStatus]  = useState(null); // null | "ok" | "error"
+
+  const save = () => {
+    localStorage.setItem("xm_tg_token", token);
+    localStorage.setItem("xm_tg_chat",  chatId);
+    toast("Telegram sozlamalari saqlandi");
+  };
+
+  const sendTest = async () => {
+    if (!token || !chatId) return toast("Token va Chat ID kiritilishi shart", "warning");
+    setSending(true); setStatus(null);
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${token}/sendMessage`,
+        { method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode:"HTML" }) }
+      );
+      const json = await res.json();
+      if (json.ok) { setStatus("ok"); toast("✅ Xabar yuborildi!"); }
+      else         { setStatus("error"); toast(json.description || "Xato", "error"); }
+    } catch { setStatus("error"); toast("Tarmoq xatosi", "error"); }
+    setSending(false);
+  };
+
+  const sendDebtors = async () => {
+    const debtors = (data.students||[]).filter(s=>Number(s.balance||0)<0);
+    if (!token || !chatId) return toast("Avval Telegram sozlang", "warning");
+    if (!debtors.length)   return toast("Qarzdorlar yo'q 🎉");
+    setSending(true);
+    const text = `📢 <b>Qarzdorlar ro'yxati</b>\n\n` +
+      debtors.slice(0,10).map((s,i)=>`${i+1}. ${s.full_name} — ${new Intl.NumberFormat("uz-UZ").format(Math.abs(Number(s.balance)))} so'm`).join("\n") +
+      (debtors.length>10 ? `\n\n...va yana ${debtors.length-10} ta` : "");
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`,
+        { method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ chat_id:chatId, text, parse_mode:"HTML" }) });
+      const json = await res.json();
+      if (json.ok) toast(`✅ ${debtors.length} ta qarzdor ro'yxati yuborildi`);
+      else toast(json.description||"Xato","error");
+    } catch { toast("Tarmoq xatosi","error"); }
+    setSending(false);
+  };
+
+  return (
+    <div style={{ gridColumn:"1/-1", background:"var(--card)", border:"1px solid var(--line)", borderRadius:"var(--r)", padding:20, boxShadow:"var(--sh1)" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
+        <div style={{ width:36, height:36, borderRadius:10, background:"#e0f2fe", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+          ✈️
+        </div>
+        <div>
+          <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)" }}>Telegram Bot Integratsiya</div>
+          <div style={{ fontSize:11, color:"var(--t4)" }}>Xabar yuborish, bildirishnomalar, qarzdorlar ro'yxati</div>
+        </div>
+        {status === "ok"    && <span style={{ marginLeft:"auto", background:"#dcfce7", color:"#166534", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700 }}>✓ Ulangan</span>}
+        {status === "error" && <span style={{ marginLeft:"auto", background:"#fee2e2", color:"#991b1b", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700 }}>✕ Xato</span>}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+        <label style={{ display:"flex", flexDirection:"column", gap:5 }}>
+          <span style={{ fontSize:11, fontWeight:600, color:"var(--t4)" }}>Bot Token</span>
+          <input type="password" value={token} onChange={e=>setToken(e.target.value)}
+            placeholder="1234567890:ABCdef..."
+            style={{ fontFamily:"monospace", fontSize:11 }} />
+          <span style={{ fontSize:10, color:"var(--t4)" }}>
+            <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" style={{ color:"var(--brand)" }}>@BotFather</a> dan oling
+          </span>
+        </label>
+        <label style={{ display:"flex", flexDirection:"column", gap:5 }}>
+          <span style={{ fontSize:11, fontWeight:600, color:"var(--t4)" }}>Chat ID</span>
+          <input type="text" value={chatId} onChange={e=>setChatId(e.target.value)}
+            placeholder="-1001234567890" />
+          <span style={{ fontSize:10, color:"var(--t4)" }}>
+            Guruh yoki kanal ID. <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer" style={{ color:"var(--brand)" }}>@userinfobot</a> dan toping
+          </span>
+        </label>
+      </div>
+
+      <label style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:14 }}>
+        <span style={{ fontSize:11, fontWeight:600, color:"var(--t4)" }}>Test xabar matni</span>
+        <textarea rows={2} value={msg} onChange={e=>setMsg(e.target.value)}
+          style={{ resize:"vertical", fontFamily:"inherit", fontSize:12 }} />
+      </label>
+
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <button className="btn btn-primary btn-sm" onClick={save}>
+          <Save size={12}/> Saqlash
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={sendTest} disabled={sending}>
+          {sending ? <><RefreshCw size={12} className="spin"/> Yuborilmoqda...</>
+                   : <>✈️ Test xabar yuborish</>}
+        </button>
+        <button className="btn btn-ghost btn-sm danger" onClick={sendDebtors} disabled={sending}>
+          ⚠️ Qarzdorlarga xabar ({(data.students||[]).filter(s=>Number(s.balance||0)<0).length} ta)
+        </button>
+      </div>
     </div>
   );
 }
@@ -1191,6 +1590,14 @@ function ModalForm({ modal, t, data, close, loadAll }) {
   const validate = () => {
     const errs = {};
     cfg.fields.filter(f => f.req).forEach(f => { if (!form[f.k]) errs[f.k] = `${f.label} majburiy`; });
+
+    // 📵 Telefon duplikat tekshiruvi — talaba qo'shishda
+    if ((modal.type === "student" || modal.type === "teacher") && !isEdit && form.phone) {
+      const allPeople = [...(data.students||[]), ...(data.teachers||[])];
+      const dup = allPeople.find(p => p.phone && p.phone.replace(/\D/g,"") === form.phone.replace(/\D/g,"") && p.id !== form.id);
+      if (dup) errs.phone = `Bu telefon allaqachon mavjud: ${dup.full_name}`;
+    }
+
     setErrors(errs);
     return !Object.keys(errs).length;
   };
@@ -1203,11 +1610,34 @@ function ModalForm({ modal, t, data, close, loadAll }) {
         const { id, created_at, ...rest } = form;
         const { error } = await db.from(cfg.table).update(rest).eq("id", id);
         if (error) throw error;
-        toast("Yangilandi");
+        toast("Yangilandi ✓");
       } else {
         const { error } = await db.from(cfg.table).insert(form);
         if (error) throw error;
-        toast("Qo'shildi");
+        toast("Qo'shildi ✓");
+
+        /* ── Balans auto-sync ──────────────────────────────────────
+           To'lov qo'shilganda → talabaning balansini avtomatik yangilash
+        ─────────────────────────────────────────────────────────── */
+        if (modal.type === "payment" && form.student_name && form.amount) {
+          const student = (data.students || []).find(s => s.full_name === form.student_name);
+          if (student) {
+            const newBalance = Number(student.balance || 0) + Number(form.amount);
+            await db.from("students").update({ balance: newBalance }).eq("id", student.id);
+          }
+        }
+
+        /* ── Guruh davomatiga auto-bildirishnoma ───────────────────
+           Yangi talaba qo'shilganda notification yaratish
+        ─────────────────────────────────────────────────────────── */
+        if (modal.type === "student" && form.full_name) {
+          await db.from("notifications").insert({
+            title: `Yangi talaba: ${form.full_name}`,
+            body: `${form.group_name || "Guruhsiz"} · ${form.source || ""}`,
+            type: "info",
+            is_read: false,
+          }).catch(() => {}); // xato bo'lsa ignore
+        }
       }
       close(); await loadAll();
     } catch (e) { toast(e.message, "error"); }

@@ -17,9 +17,12 @@ function mockSpark(seed, len = 7) {
   return Array.from({ length: len }, (_, i) => Math.max(0, seed + Math.sin((i + seed) * 1.3) * seed * 0.4));
 }
 
-export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, markAllRead }) {
+export default function Dashboard({ t, data, stats, sub, setSub, setModal, nav, markAllRead, role, user }) {
   if (sub === "analytics")     return <Analytics     t={t} data={data} stats={stats} nav={nav} />;
   if (sub === "notifications") return <Notifications t={t} data={data} markAllRead={markAllRead} />;
+
+  // O'qituvchi uchun alohida dashboard
+  if (role === "teacher") return <TeacherDashboard t={t} data={data} user={user} nav={nav} setModal={setModal} />;
 
   const recentAtt  = attRate(data.attendance || []);
   const newLeads   = (data.leads || []).filter(l => l.stage === "new").length;
@@ -469,6 +472,125 @@ function Notifications({ t, data, markAllRead }) {
         {items.map(n => <Notice key={n.id} n={n} />)}
         {!items.length && <Empty text="Bildirishnomalar yo'q" icon="🔔" />}
       </Card>
+    </div>
+  );
+}
+
+/* ── Teacher Dashboard ───────────────────────────────────────────── */
+function TeacherDashboard({ t, data, user, nav, setModal }) {
+  const teacherName = user?.name || "";
+  const myGroups    = useMemo(()=>(data.study_groups||[]).filter(g=>g.teacher_name===teacherName),[data,teacherName]);
+  const myStudents  = useMemo(()=>(data.students||[]).filter(s=>myGroups.some(g=>g.name===s.group_name)),[data,myGroups]);
+  const myAttRows   = useMemo(()=>(data.attendance||[]).filter(a=>myGroups.some(g=>g.name===a.group_name)),[data,myGroups]);
+  const myHomework  = useMemo(()=>(data.homework||[]).filter(h=>myGroups.some(g=>g.name===h.group_name)),[data,myGroups]);
+  const todayAtt    = attRate(myAttRows.filter(a=>a.lesson_date===new Date().toISOString().slice(0,10)));
+  const overallAtt  = attRate(myAttRows);
+
+  const today = new Date();
+  const DAYS  = ["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"];
+  const todayName = DAYS[today.getDay()];
+  const todaySchedule = useMemo(()=>
+    (data.schedules||[]).filter(s=>s.day_name===todayName&&myGroups.some(g=>g.name===s.group_name)),
+    [data,todayName,myGroups]);
+
+  return (
+    <div className="page-fade" style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* Greeting */}
+      <div style={{background:"var(--brand-g)",borderRadius:"var(--r)",padding:"20px 24px",color:"#fff",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",right:-20,top:-20,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,.08)"}}/>
+        <div style={{position:"absolute",right:30,bottom:-30,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,.05)"}}/>
+        <div style={{fontSize:11,opacity:.7,marginBottom:4,fontWeight:600}}>XUSH KELIBSIZ</div>
+        <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{teacherName || "O'qituvchi"} 👋</div>
+        <div style={{fontSize:12,opacity:.75}}>{todayName} · Bugun {todaySchedule.length} ta dars</div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-strip">
+        {[
+          {l:"Guruhlarim",  v:myGroups.length,   ico:"🎓", c:"blue"},
+          {l:"Talabalarim", v:myStudents.length,  ico:"👥", c:"green"},
+          {l:"Bugungi davomat", v:`${todayAtt}%`, ico:"✅", c:todayAtt>75?"green":"red"},
+          {l:"Uy vazifalari", v:myHomework.length,ico:"📚", c:"orange"},
+        ].map(x=>(
+          <div key={x.l} className={`kpi kpi-${x.c}`} style={{cursor:"default"}}>
+            <div className="kpi-top">
+              <div className="kpi-icon" style={{fontSize:18}}>{x.ico}</div>
+            </div>
+            <div className="kpi-val">{x.v}</div>
+            <div className="kpi-label">{x.l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="g2">
+        {/* Bugungi darslar */}
+        <Card className="pad">
+          <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:14,marginBottom:14,color:"var(--t1)"}}>
+            📅 Bugungi darslar — {todayName}
+          </div>
+          {todaySchedule.length ? todaySchedule.map((s,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid var(--line2)"}}>
+              <div style={{width:40,height:40,borderRadius:11,background:"var(--brand3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🕐</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:13}}>{s.group_name}</div>
+                <div style={{fontSize:11,color:"var(--t4)"}}>{s.start_time} – {s.end_time}{s.room?` · Xona ${s.room}`:""}</div>
+              </div>
+              <button className="btn btn-primary btn-xs" onClick={()=>nav("attend")}>Davomat</button>
+            </div>
+          )) : (
+            <div style={{textAlign:"center",padding:"24px 0",color:"var(--t4)",fontSize:12}}>Bugun dars yo'q 🎉</div>
+          )}
+          <button className="btn btn-ghost btn-sm" style={{width:"100%",marginTop:12,justifyContent:"center"}} onClick={()=>nav("sched")}>
+            Jadval →
+          </button>
+        </Card>
+
+        {/* Guruhlar holati */}
+        <Card className="pad">
+          <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:14,marginBottom:14,color:"var(--t1)"}}>
+            👥 Guruhlarim
+          </div>
+          {myGroups.length ? myGroups.map(g=>{
+            const cnt   = myStudents.filter(s=>s.group_name===g.name).length;
+            const cap   = Number(g.capacity||15);
+            const attR  = attRate((data.attendance||[]).filter(a=>a.group_name===g.name));
+            return (
+              <div key={g.id} style={{padding:"10px 0",borderBottom:"1px solid var(--line2)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>{g.name}</div>
+                    <div style={{fontSize:11,color:"var(--t4)"}}>{g.subject} · {cnt}/{cap} talaba</div>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:attR>75?"var(--green)":"var(--red)"}}>{attR}%</span>
+                </div>
+                <div style={{height:5,background:"var(--line)",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${attR}%`,background:attR>75?"var(--green)":"var(--red)",borderRadius:3,transition:"width .4s"}}/>
+                </div>
+              </div>
+            );
+          }) : <Empty text="Guruhlar yo'q" />}
+          <button className="btn btn-ghost btn-sm" style={{width:"100%",marginTop:12,justifyContent:"center"}} onClick={()=>nav("groups")}>
+            Barchasi →
+          </button>
+        </Card>
+      </div>
+
+      {/* So'nggi uy vazifalari */}
+      {myHomework.length > 0 && (
+        <Card className="pad">
+          <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:14,marginBottom:12,color:"var(--t1)"}}>
+            📚 Uy vazifalari
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+            {myHomework.slice(0,6).map(hw=>(
+              <div key={hw.id} style={{background:"var(--card2)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 14px"}}>
+                <div style={{fontWeight:700,fontSize:12.5,marginBottom:4}}>{hw.title}</div>
+                <div style={{fontSize:11,color:"var(--t4)"}}>{hw.group_name} · {hw.due_date||"—"}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

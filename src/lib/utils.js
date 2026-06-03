@@ -10,13 +10,45 @@ export const fmtTime  = (d)    => { if(!d) return "—"; const dt=new Date(d); r
 export const attRate  = (rows) => { if(!rows?.length) return 0; return Math.round(rows.filter(r=>r.status==="present").length/rows.length*100); };
 export const gradeColor = (score, max=10) => { const pct=score/max*100; return pct>=80?"green":pct>=60?"orange":"red"; };
 
-export const exportCSV = (rows, name) => {
+/* Column label maps for clean export headers */
+const COL_LABELS = {
+  full_name:"FISH", student_name:"Talaba", teacher_name:"O'qituvchi",
+  phone:"Telefon", group_name:"Guruh", amount:"Summa", method:"Usul",
+  status:"Holat", created_at:"Sana", balance:"Balans", subject:"Fan",
+  salary_type:"Maosh turi", salary_value:"Maosh", source:"Manba",
+  stage:"Bosqich", lesson_date:"Dars sanasi", period:"Davr",
+  category:"Kategoriya", recipient:"Kimga", note:"Izoh",
+  start_time:"Boshlanish", end_time:"Tugash", day_name:"Kun",
+  title:"Sarlavha", score:"Ball", max_score:"Maks ball",
+  due_date:"Muddat", priority:"Muhimlik", assigned_to:"Tayinlangan",
+};
+
+export const exportCSV = (rows, name, colMap) => {
   if(!rows?.length) return;
-  const keys = Object.keys(rows[0]);
-  const csv = [keys.join(","), ...rows.map(r=>keys.map(k=>JSON.stringify(r[k]??"")).join(","))].join("\n");
-  Object.assign(document.createElement("a"),{
-    href:"data:text/csv;charset=utf-8,"+encodeURIComponent(csv), download:name+".csv"
-  }).click();
+  const map  = colMap || COL_LABELS;
+  const keys = Object.keys(rows[0]).filter(k => !["id","__v"].includes(k));
+  const headers = keys.map(k => map[k] || k);
+  const formatVal = (k, v) => {
+    if(v == null) return "";
+    if(k === "amount" || k === "salary_value" || k === "balance")
+      return new Intl.NumberFormat("uz-UZ").format(Number(v));
+    if(k === "created_at" || k === "lesson_date" || k === "due_date")
+      return v ? new Date(v).toLocaleDateString("uz-UZ") : "";
+    if(typeof v === "boolean") return v ? "Ha" : "Yo'q";
+    return String(v);
+  };
+  const BOM = "﻿"; // UTF-8 BOM for Excel to detect encoding
+  const csv = BOM + [
+    headers.join(","),
+    ...rows.map(r => keys.map(k => {
+      const val = formatVal(k, r[k]);
+      return `"${val.replace(/"/g,'""')}"`;
+    }).join(","))
+  ].join("\n");
+  const a = document.createElement("a");
+  a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+  a.download = name + "_" + new Date().toISOString().slice(0,10) + ".csv";
+  a.click();
 };
 
 export const useDebounce = (value, delay=300) => {
