@@ -13,7 +13,8 @@ import {
   Clock, UserCircle2, BookMarked, MoreHorizontal,
   TrendingUp, TrendingDown, ArrowRight, Eye,
   CheckCircle2, XCircle, AlertCircle, Phone, Mail,
-  MapPin, Award, Layers, Save, ChevronRight, Download
+  MapPin, Award, Layers, Save, ChevronRight, Download,
+  Check, Minus, MessageSquare, ShieldOff, Send, AlertTriangle, Megaphone
 } from "lucide-react";
 import { supabase as db } from "./lib/supabase.js";
 import { getLang } from "./lib/i18n.js";
@@ -41,7 +42,7 @@ import {
   ToastProvider, useToast, ConfirmProvider, useConfirm,
   Card, SectionHeader, Pill, StatusPill, ProgressBar,
   Person, Avatar, Mini, Line, Empty, MethodBadge,
-  GroupLine, Notice, FinanceHeroCard
+  GroupLine, Notice, FinanceHeroCard, CustomSelect
 } from "./components/ui/index.jsx";
 
 import "./index.css";
@@ -50,8 +51,9 @@ import "./index.css";
 const ROLE_PAGES = {
   superadmin: ["dash","students","groups","teachers","finance","attend","sched","tests","homework","grades","library","resources","leads","tasks","reports","settings"],
   admin:      ["dash","students","groups","teachers","finance","attend","sched","tests","homework","grades","library","resources","leads","tasks","reports","settings"],
-  teacher:    ["dash","groups","attend","sched","tests","homework","grades","library","resources","tasks","reports"],
+  teacher:    ["dash","groups","attend","sched","tests","homework","grades","library","resources","tasks"],
   reception:  ["dash","students","groups","finance","attend","leads","tasks"],
+  student:    ["dash","attend","homework","grades","library","resources"],
 };
 const canAccess = (role, pageId) => (ROLE_PAGES[role] || ROLE_PAGES.reception).includes(pageId);
 
@@ -184,7 +186,45 @@ function AppInner({ user, onLogout }) {
 
   const nav    = useCallback(id => { setPage(id); setSub("home"); }, []);
   const role   = user?.role || "reception";
-  const shared = { t, data, stats, sub, setSub, setModal, setDetail, loadAll, nav, markAllRead, role, user };
+
+  // Role-based data filtering
+  const filteredData = useMemo(() => {
+    if (role === "teacher") {
+      const myName = user?.name || "";
+      const myGroups = (data.study_groups||[]).filter(g => g.teacher_name === myName).map(g => g.name);
+      return {
+        ...data,
+        study_groups: (data.study_groups||[]).filter(g => g.teacher_name === myName),
+        students:     (data.students||[]).filter(s => myGroups.includes(s.group_name)),
+        attendance:   (data.attendance||[]).filter(a => myGroups.includes(a.group_name)),
+        schedules:    (data.schedules||[]).filter(s => myGroups.includes(s.group_name)),
+        homework:     (data.homework||[]).filter(h => myGroups.includes(h.group_name)),
+        grades:       (data.grades||[]).filter(g => myGroups.includes(g.group_name)),
+        tests:        (data.tests||[]).filter(t => myGroups.includes(t.group_name)),
+        resources:    (data.resources||[]).filter(r => !r.uploaded_by || r.uploaded_by === myName || myGroups.includes(r.group_name)),
+      };
+    }
+    if (role === "student") {
+      const myGroup = user?.group_name || "";
+      const myName  = user?.name || "";
+      return {
+        ...data,
+        study_groups: (data.study_groups||[]).filter(g => g.name === myGroup),
+        students:     (data.students||[]).filter(s => s.full_name === myName),
+        attendance:   (data.attendance||[]).filter(a => a.student_name === myName),
+        homework:     (data.homework||[]).filter(h => h.group_name === myGroup),
+        grades:       (data.grades||[]).filter(g => g.student_name === myName),
+        resources:    (data.resources||[]).filter(r => !r.group_name || r.group_name === myGroup),
+        payments:     [],
+        expenses:     [],
+        leads:        [],
+        tasks:        (data.tasks||[]).filter(tk => tk.assigned_to === myName),
+      };
+    }
+    return data;
+  }, [data, role, user]);
+
+  const shared = { t, data: filteredData, stats, sub, setSub, setModal, setDetail, loadAll, nav, markAllRead, role, user };
 
   const PAGE_GROUPS = [
     { label: "ANA",    pages: ["dash","students","groups","teachers","finance"] },
@@ -301,7 +341,7 @@ function AppInner({ user, onLogout }) {
               <span>X-MASTER Pro</span>
               <span className="tb-crumb-sep">›</span>
               <span>{t[PAGES.find(x => x.id === page)?.key]}</span>
-              {lastSync && <><span className="tb-crumb-sep">·</span><span>🕐 {fmtTime(lastSync)}</span></>}
+              {lastSync && <><span className="tb-crumb-sep">·</span><span style={{display:"flex",alignItems:"center",gap:3}}><Clock size={10}/> {fmtTime(lastSync)}</span></>}
             </div>
           </div>
           <div className="tb-right">
@@ -313,9 +353,14 @@ function AppInner({ user, onLogout }) {
               {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
             </button>
             <div className="lang-btn-group">
-              {[{v:"uz",f:"🇺🇿",l:"UZ"},{v:"ru",f:"🇷🇺",l:"RU"},{v:"en",f:"🇬🇧",l:"EN"}].map(x=>(
+              {[
+                {v:"uz", flag:"UZ", color:"#1eb53a", label:"UZ"},
+                {v:"ru", flag:"RU", color:"#d52b1e", label:"RU"},
+                {v:"en", flag:"EN", color:"#012169", label:"EN"},
+              ].map(x=>(
                 <button key={x.v} className={`lang-btn ${lang===x.v?"on":""}`} onClick={()=>setLang(x.v)}>
-                  {x.f} {x.l}
+                  <span className="lang-flag" style={{background:x.color}}>{x.flag}</span>
+                  {x.label}
                 </button>
               ))}
             </div>
@@ -333,7 +378,7 @@ function AppInner({ user, onLogout }) {
                 title="Filial tanlash"
               >
                 {(data.branches || []).map(b => (
-                  <option key={b.id} value={b.id}>🏢 {b.name}</option>
+                  <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
               </select>
             ) : (
@@ -370,7 +415,7 @@ function AppInner({ user, onLogout }) {
           {/* Role-based page guard */}
           {!canAccess(role, page) ? (
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60vh", gap:16, opacity:.6 }}>
-              <div style={{ fontSize:48 }}>🔒</div>
+              <ShieldOff size={52} strokeWidth={1} style={{color:"var(--t4)"}}/>
               <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:18, color:"var(--t3)" }}>Kirish taqiqlangan</div>
               <div style={{ fontSize:13, color:"var(--t4)" }}>Bu sahifaga sizning rolingiz kirish huquqiga ega emas</div>
             </div>
@@ -457,10 +502,13 @@ function Groups({ t, rows, data, setModal, nav, loadAll }) {
           <input className="sb-input" placeholder="Guruh nomi, o'qituvchi..." value={search} onChange={e=>setSearch(e.target.value)}/>
           {search&&<button className="sb-clear-btn" onClick={()=>setSearch("")}><X size={13}/></button>}
         </div>
-        <select style={{height:36,borderRadius:9,border:"1px solid var(--line)",background:"var(--card2)",padding:"0 10px",fontSize:12,color:"var(--t2)"}} value={subj} onChange={e=>setSubj(e.target.value)}>
-          <option value="">Barcha fanlar</option>
-          {subjects.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
+        <CustomSelect
+          style={{width:160,height:36}}
+          value={subj}
+          onChange={v => setSubj(v)}
+          placeholder="Barcha fanlar"
+          options={subjects.map(s => ({ v: s, l: s }))}
+        />
         <div className="filter-tabs">
           <button className={`filter-tab ${view === "grid" ? "on" : ""}`} onClick={() => setView("grid")}>
             <LayoutGrid size={12} /> Grid
@@ -602,10 +650,13 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
           <input className="sb-input" placeholder="Ism, telefon..." value={search} onChange={e=>setSearch(e.target.value)}/>
           {search&&<button className="sb-clear-btn" onClick={()=>setSearch("")}><X size={13}/></button>}
         </div>
-        <select style={{height:36,borderRadius:9,border:"1px solid var(--line)",background:"var(--card2)",padding:"0 10px",fontSize:12}} value={subjFilt} onChange={e=>setSubjFilt(e.target.value)}>
-          <option value="">Barcha fanlar</option>
-          {subjects.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
+        <CustomSelect
+          style={{width:160,height:36}}
+          value={subjFilt}
+          onChange={v => setSubjFilt(v)}
+          placeholder="Barcha fanlar"
+          options={subjects.map(s => ({ v: s, l: s }))}
+        />
         <button className="btn btn-primary btn-sm" style={{marginLeft:"auto"}} onClick={() => setModal({ type: "teacher" })}>
           <Plus size={13} /> O'qituvchi qo'shish
         </button>
@@ -643,11 +694,12 @@ function Teachers({ t, rows, data, setModal, loadAll }) {
 function Attendance({ t, data, loadAll }) {
   const toast = useToast();
   const today = new Date().toISOString().slice(0,10);
-  const [selGroup,  setSelGroup]  = useState("");
-  const [lessonDate,setLessonDate]= useState(today);
-  const [saving,    setSaving]    = useState({});   // { studentName: true/false }
-  const [notes,     setNotes]     = useState({});   // { studentName: "..." }
-  const [showNote,  setShowNote]  = useState(null); // studentName
+  const [viewMode,   setViewMode]   = useState("day");   // "day" | "week"
+  const [selGroup,   setSelGroup]   = useState("");
+  const [lessonDate, setLessonDate] = useState(today);
+  const [saving,     setSaving]     = useState({});
+  const [notes,      setNotes]      = useState({});
+  const [showNote,   setShowNote]   = useState(null);
 
   const groups = useMemo(()=>[...new Set((data.students||[]).map(s=>s.group_name).filter(Boolean))],[data.students]);
   const students = useMemo(()=>selGroup ? (data.students||[]).filter(s=>s.group_name===selGroup) : [],[data.students,selGroup]);
@@ -684,7 +736,7 @@ function Attendance({ t, data, loadAll }) {
       await db.from("attendance").insert(students.map(s=>({
         student_name:s.full_name, group_name:selGroup, lesson_date:lessonDate, status, note:""
       })));
-      toast(`${status==="present"?"✅":"❌"} ${students.length} talaba belgilandi`);
+      toast(`${students.length} talaba ${status === "present" ? "keldi" : "kelmadi"} deb belgilandi`);
       await loadAll();
     } catch(e){ toast(e.message,"error"); }
     finally { setSaving({}); }
@@ -696,6 +748,19 @@ function Attendance({ t, data, loadAll }) {
 
   const DAY_NAMES = ["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"];
 
+  // Hafta ko'rinishi uchun helper
+  const getWeekDates = (baseDate) => {
+    const d = new Date(baseDate + "T00:00");
+    const day = d.getDay();
+    const mon = new Date(d); mon.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    return Array.from({length:7}, (_, i) => {
+      const dd = new Date(mon); dd.setDate(mon.getDate() + i);
+      return dd.toISOString().slice(0,10);
+    });
+  };
+  const weekDates = useMemo(() => getWeekDates(lessonDate), [lessonDate]);
+  const SHORT_DAYS = ["Du","Se","Ch","Pa","Ju","Sh","Ya"];
+
   return (
     <div className="page-fade" style={{display:"flex",flexDirection:"column",gap:14}}>
 
@@ -704,10 +769,13 @@ function Attendance({ t, data, loadAll }) {
         <div className="att-sel-row">
           <div className="att-sel-wrap">
             <span className="att-sel-label">Guruh</span>
-            <select className="att-sel" value={selGroup} onChange={e=>{setSelGroup(e.target.value);setSaving({});}}>
-              <option value="">— Guruh tanlang —</option>
-              {groups.map(g=><option key={g} value={g}>{g}</option>)}
-            </select>
+            <CustomSelect
+              className="att-sel"
+              value={selGroup}
+              onChange={v => { setSelGroup(v); setSaving({}); }}
+              placeholder="— Guruh tanlang —"
+              options={groups.map(g => ({ v: g, l: g }))}
+            />
           </div>
           <div className="att-sel-wrap">
             <span className="att-sel-label">Sana</span>
@@ -716,13 +784,22 @@ function Attendance({ t, data, loadAll }) {
           <div className="att-day-badge">
             {DAY_NAMES[new Date(lessonDate+"T00:00").getDay()]}
           </div>
+          {/* Ko'rinish tanlash */}
+          <div className="filter-tabs" style={{marginLeft:"auto"}}>
+            <button className={`filter-tab ${viewMode==="day"?"on":""}`} onClick={()=>setViewMode("day")}>
+              <List size={12}/> Kun
+            </button>
+            <button className={`filter-tab ${viewMode==="week"?"on":""}`} onClick={()=>setViewMode("week")}>
+              <Calendar size={12}/> Hafta
+            </button>
+          </div>
         </div>
 
         {selGroup && students.length > 0 && (
           <div className="att-bulk-row">
             <span style={{fontSize:12,color:"var(--t4)",fontWeight:600}}>Barchasi:</span>
-            <button className="att-bulk-btn present" onClick={()=>markAll("present")}>✓ Hammasi keldi</button>
-            <button className="att-bulk-btn absent"  onClick={()=>markAll("absent")}>✗ Hammasi kelmadi</button>
+            <button className="att-bulk-btn present" onClick={()=>markAll("present")}><Check size={12}/> Hammasi keldi</button>
+            <button className="att-bulk-btn absent"  onClick={()=>markAll("absent")}><X size={12}/> Hammasi kelmadi</button>
             <div className="att-stats">
               <span className="att-stat-chip present">{presentCount} keldi</span>
               <span className="att-stat-chip absent">{absentCount} kelmadi</span>
@@ -735,13 +812,13 @@ function Attendance({ t, data, loadAll }) {
       {/* ── 2. Talabalar ro'yxati ── */}
       {!selGroup ? (
         <div className="att-empty-state">
-          <div style={{fontSize:48,marginBottom:12}}>📋</div>
+          <ClipboardCheck size={48} strokeWidth={1} style={{color:"var(--t4)",marginBottom:12}}/>
           <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:16,fontWeight:800,color:"var(--t3)"}}>Guruh tanlang</div>
           <div style={{fontSize:13,color:"var(--t4)",marginTop:6}}>Yuqoridan guruh tanlang va davomat belgilang</div>
         </div>
       ) : students.length === 0 ? (
         <div className="att-empty-state">
-          <div style={{fontSize:48,marginBottom:12}}>👥</div>
+          <Users size={48} strokeWidth={1} style={{color:"var(--t4)",marginBottom:12}}/>
           <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontSize:16,fontWeight:800,color:"var(--t3)"}}>Bu guruhda talabalar yo'q</div>
         </div>
       ) : (
@@ -772,21 +849,21 @@ function Attendance({ t, data, loadAll }) {
                 {/* Tugmalar */}
                 <div className="att-action-btns">
                   {[
-                    {s:"present", l:"✓",  label:"Keldi",    c:"present"},
-                    {s:"absent",  l:"✗",  label:"Kelmadi",  c:"absent"},
-                    {s:"late",    l:"!",  label:"Kechikdi", c:"late"},
-                    {s:"excused", l:"~",  label:"Sababli",  c:"excused"},
+                    {s:"present", Icon:Check,        label:"Keldi",    c:"present"},
+                    {s:"absent",  Icon:X,             label:"Kelmadi",  c:"absent"},
+                    {s:"late",    Icon:Clock,         label:"Kechikdi", c:"late"},
+                    {s:"excused", Icon:Minus,         label:"Sababli",  c:"excused"},
                   ].map(btn=>(
                     <button key={btn.s}
                       className={`att-btn att-btn-${btn.c} ${st===btn.s?"active":""}`}
                       onClick={()=>markOne(s.full_name, btn.s)}
                       disabled={isBusy}
                       title={btn.label}>
-                      {isBusy && st!==btn.s ? <RefreshCw size={11} className="spin"/> : btn.l}
+                      {isBusy && st!==btn.s ? <RefreshCw size={11} className="spin"/> : <btn.Icon size={12}/>}
                     </button>
                   ))}
                   <button className="att-btn att-btn-note" title="Izoh" onClick={()=>setShowNote(showNote===s.full_name?null:s.full_name)}>
-                    💬
+                    <MessageSquare size={12}/>
                   </button>
                 </div>
 
@@ -808,12 +885,75 @@ function Attendance({ t, data, loadAll }) {
 
                 {/* Mavjud izoh */}
                 {att?.note && showNote!==s.full_name && (
-                  <div className="att-existing-note">💬 {att.note}</div>
+                  <div className="att-existing-note"><MessageSquare size={10}/> {att.note}</div>
                 )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* ── HAFTA KO'RINISHI ── */}
+      {viewMode === "week" && selGroup && students.length > 0 && (
+        <Card className="pad">
+          <div style={{overflowX:"auto"}}>
+            <table className="tbl" style={{minWidth:600}}>
+              <thead>
+                <tr>
+                  <th style={{minWidth:160}}>Talaba</th>
+                  {weekDates.map((d,i) => {
+                    const isToday = d === today;
+                    return (
+                      <th key={d} style={{textAlign:"center",background:isToday?"rgba(124,58,237,.15)":undefined,cursor:"pointer"}}
+                        onClick={()=>setLessonDate(d)}>
+                        <div style={{fontWeight:800,color:isToday?"var(--brand)":undefined}}>{SHORT_DAYS[i]}</div>
+                        <div style={{fontSize:9,opacity:.7,fontWeight:400}}>{d.slice(5)}</div>
+                      </th>
+                    );
+                  })}
+                  <th style={{textAlign:"center"}}>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map(s => {
+                  const attMap = Object.fromEntries(
+                    weekDates.map(d => [d, (data.attendance||[]).find(a => a.student_name===s.full_name && a.lesson_date===d)])
+                  );
+                  const total = weekDates.filter(d => attMap[d]).length;
+                  const pres  = weekDates.filter(d => attMap[d]?.status==="present").length;
+                  const pct   = total > 0 ? Math.round(pres/total*100) : null;
+                  const STATUS_COLOR = {present:"#dcfce7",absent:"#fee2e2",late:"#fef3c7",excused:"#f0fdf4"};
+                  const STATUS_ICON  = {present:<Check size={12} style={{color:"#16a34a"}}/>, absent:<X size={12} style={{color:"#dc2626"}}/>, late:<Clock size={12} style={{color:"#d97706"}}/>, excused:<Minus size={12} style={{color:"#059669"}}/>};
+                  return (
+                    <tr key={s.id} className="tbl-row">
+                      <td style={{fontWeight:600}}>{s.full_name}</td>
+                      {weekDates.map(d => {
+                        const a = attMap[d];
+                        return (
+                          <td key={d} style={{textAlign:"center",background:a ? STATUS_COLOR[a.status] : d===lessonDate?"rgba(124,58,237,.05)":undefined,cursor:"pointer",transition:"background .1s"}}
+                            onClick={()=>setLessonDate(d)}>
+                            {a ? STATUS_ICON[a.status] : <span style={{color:"var(--t5)",fontSize:16}}>·</span>}
+                          </td>
+                        );
+                      })}
+                      <td style={{textAlign:"center",fontWeight:800,color:pct===null?"var(--t5)":pct>=80?"var(--green)":"var(--red)"}}>
+                        {pct !== null ? `${pct}%` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{display:"flex",gap:14,marginTop:10,fontSize:11,color:"var(--t4)"}}>
+            {[["present","#dcfce7","#16a34a","Keldi"],["absent","#fee2e2","#dc2626","Kelmadi"],["late","#fef3c7","#d97706","Kechikdi"],["excused","#f0fdf4","#059669","Sababli"]].map(([s,bg,c,l])=>(
+              <span key={s} style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{width:12,height:12,borderRadius:3,background:bg,border:`1.5px solid ${c}`,display:"inline-block"}}/>
+                {l}
+              </span>
+            ))}
+          </div>
+        </Card>
       )}
     </div>
   );
@@ -970,10 +1110,13 @@ function Leads({ t, rows, setModal, loadAll }) {
           <input className="sb-input" placeholder="Ism, telefon..." value={search} onChange={e=>setSearch(e.target.value)}/>
           {search&&<button className="sb-clear-btn" onClick={()=>setSearch("")}><X size={13}/></button>}
         </div>
-        <select style={{height:36,borderRadius:9,border:"1px solid var(--line)",background:"var(--card2)",padding:"0 10px",fontSize:12}} value={source} onChange={e=>setSource(e.target.value)}>
-          <option value="">Barcha manbalar</option>
-          {sources.map(s=><option key={s} value={s}>{s}</option>)}
-        </select>
+        <CustomSelect
+          style={{width:160,height:36}}
+          value={source}
+          onChange={v => setSource(v)}
+          placeholder="Barcha manbalar"
+          options={sources.map(s => ({ v: s, l: s }))}
+        />
         <div className="filter-tabs">
           <button className={`filter-tab ${view==="kanban"?"on":""}`} onClick={()=>setView("kanban")}><Layers size={12}/> Kanban</button>
           <button className={`filter-tab ${view==="list"?"on":""}`} onClick={()=>setView("list")}><List size={12}/> Ro'yxat</button>
@@ -1032,12 +1175,12 @@ function Leads({ t, rows, setModal, loadAll }) {
                   <td><Pill type={LEAD_STAGES.find(s => s.id === l.stage)?.color || "blue"}>{LEAD_STAGES.find(s => s.id === l.stage)?.label || l.stage}</Pill></td>
                   <td className="c-muted">{fmtDate(l.created_at)}</td>
                   <td><div className="row-btns">
-                    <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "lead", row: l })}>✎</button>
-                    <button className="btn btn-ghost btn-xs danger" onClick={() => remove(l.id)}>✕</button>
+                    <button className="btn btn-ghost btn-xs" onClick={() => setModal({ type: "lead", row: l })}><Pencil size={11}/></button>
+                    <button className="btn btn-ghost btn-xs danger" onClick={() => remove(l.id)}><Trash2 size={11}/></button>
                   </div></td>
                 </tr>
               ))}
-              {!filtRows.length && <tr><td colSpan={7}><Empty text={search||source?"Natija topilmadi":"Lidlar yo'q"} icon="📣" /></td></tr>}
+              {!filtRows.length && <tr><td colSpan={7}><Empty text={search||source?"Natija topilmadi":"Lidlar yo'q"} icon={<Megaphone size={28} strokeWidth={1} style={{color:"var(--t4)"}}/>} /></td></tr>}
             </tbody>
           </table>
         </Card>
@@ -1055,30 +1198,35 @@ function Homework({ t, data, setModal, loadAll }) {
   };
   return (
     <div className="page-fade">
-      <div className="pg-toolbar"><b style={{ fontWeight: 900 }}>📚 Uy vazifalari</b><button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "homework" })}>+ Vazifa</button></div>
+      <div className="pg-toolbar">
+        <b style={{ fontWeight:900, display:"flex", alignItems:"center", gap:6 }}>
+          <BookOpen size={15} style={{color:"var(--brand)"}}/> Uy vazifalari
+        </b>
+        <button className="btn btn-primary btn-sm" onClick={() => setModal({ type: "homework" })}><Plus size={13}/> Vazifa</button>
+      </div>
       <div className="g3">
         {(data.homework || []).map(hw => {
           const subs = (data.homework_submissions || []).filter(s => s.homework_id === hw.id);
           return (
             <Card key={hw.id} className="pad">
               <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>{hw.title}</div>
-              <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>
-                {hw.group_name && <span>👥 {hw.group_name} · </span>}
-                {hw.due_date && <span>📅 {fmtDate(hw.due_date)}</span>}
+              <div style={{ fontSize:11, color:"var(--muted)", marginBottom:8, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                {hw.group_name && <span style={{display:"flex",alignItems:"center",gap:3}}><Users size={10}/> {hw.group_name}</span>}
+                {hw.due_date && <span style={{display:"flex",alignItems:"center",gap:3}}><Calendar size={10}/> {fmtDate(hw.due_date)}</span>}
               </div>
               {hw.description && <div style={{ fontSize: 11.5, color: "var(--text-sub)", marginBottom: 8 }}>{hw.description}</div>}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <StatusPill status={hw.status} t={t} /><span style={{ fontSize: 11, color: "var(--text-sub)" }}>{subs.length} topshirdi</span>
               </div>
               <div className="grp-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "homework", row: hw })}>✎</button>
-                <button className="btn btn-ghost btn-sm danger" onClick={() => remove(hw.id)}>✕</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setModal({ type: "homework", row: hw })}><Pencil size={12}/></button>
+                <button className="btn btn-ghost btn-sm danger" onClick={() => remove(hw.id)}><Trash2 size={12}/></button>
               </div>
             </Card>
           );
         })}
         <div className="group-card add-card" onClick={() => setModal({ type: "homework" })} role="button" tabIndex={0}>
-          <span className="add-ico">📚</span><span>Vazifa qo'shish</span>
+          <BookOpen size={32} strokeWidth={1} style={{color:"var(--t4)"}}/><span>Vazifa qo'shish</span>
         </div>
       </div>
     </div>
@@ -1119,11 +1267,11 @@ function Grades({ t, data, setModal, loadAll }) {
                   <td><Pill type={g.grade_type === "exam" ? "red" : g.grade_type === "test" ? "orange" : "blue"}>{g.grade_type || "—"}</Pill></td>
                   <td><span style={{ fontWeight: 900, fontSize: 15, color: pct >= 80 ? "var(--success)" : pct >= 60 ? "var(--warning)" : "var(--danger)" }}>{g.score}</span><span style={{ color: "var(--muted)", fontSize: 11 }}>/{g.max_score || 10}</span></td>
                   <td className="c-muted">{fmtDate(g.lesson_date || g.created_at)}</td>
-                  <td><button className="btn btn-ghost btn-xs danger" onClick={() => remove(g.id)}>✕</button></td>
+                  <td><button className="btn btn-ghost btn-xs danger" onClick={() => remove(g.id)}><Trash2 size={11}/></button></td>
                 </tr>
               );
             })}
-            {!filtered.length && <tr><td colSpan={7}><Empty text="Baholar yo'q" icon="⭐" /></td></tr>}
+            {!filtered.length && <tr><td colSpan={7}><Empty text="Baholar yo'q" icon={<Star size={28} strokeWidth={1} style={{color:"var(--t4)"}}/>} /></td></tr>}
           </tbody>
         </table>
       </Card>
@@ -1273,11 +1421,18 @@ function Reports({ t, data, stats, sub, setSub }) {
     <div className="page-fade">
       <div className="pg-toolbar">
         <div className="tabs">
-          {[["home","💰 Moliya"],["growth","📈 O'sish"],["attendance","📋 Davomat"],["teachers","👨‍🏫 O'qituvchilar"]].map(([id, label]) => (
-            <button key={id} className={`ftab ${sub === id ? "on" : ""}`} onClick={() => setSub(id)}>{label}</button>
+          {[
+            ["home",       CreditCard,    "Moliya"        ],
+            ["growth",     TrendingUp,    "O'sish"        ],
+            ["attendance", ClipboardCheck,"Davomat"       ],
+            ["teachers",   GraduationCap, "O'qituvchilar" ],
+          ].map(([id, Icon, label]) => (
+            <button key={id} className={`ftab ${sub === id ? "on" : ""}`} onClick={() => setSub(id)}>
+              <Icon size={12}/> {label}
+            </button>
           ))}
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(data.payments, "hisobot")}>⇩ Excel</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => exportCSV(data.payments, "hisobot")}><Download size={12}/> Excel</button>
       </div>
 
       {/* ── MOLIYA ── */}
@@ -1291,8 +1446,8 @@ function Reports({ t, data, stats, sub, setSub }) {
           </div>
           <Card className="pad">
             <div style={{ marginBottom:14 }}>
-              <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:4 }}>
-                📊 Oylik moliyaviy ko'rinish
+              <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:4, display:"flex", alignItems:"center", gap:7 }}>
+                <BarChart3 size={15} style={{color:"var(--brand)"}}/> Oylik moliyaviy ko'rinish
               </div>
               <div style={{ display:"flex", gap:14, fontSize:11, color:"var(--t4)" }}>
                 <span style={{ display:"flex", alignItems:"center", gap:5 }}>
@@ -1322,15 +1477,15 @@ function Reports({ t, data, stats, sub, setSub }) {
       {sub === "growth" && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card className="pad">
-            <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:16 }}>
-              📈 Talabalar o'sish dinamikasi
+            <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:16, display:"flex", alignItems:"center", gap:7 }}>
+              <TrendingUp size={15} style={{color:"var(--brand)"}}/> Talabalar o'sish dinamikasi
             </div>
             <SvgLineChart points={growthPoints} color="#4f6ef7" />
           </Card>
           <div className="g2">
             {/* Lead manbalari donut */}
             <Card className="pad">
-              <div style={{ fontWeight:800, fontSize:13, marginBottom:14 }}>🎯 Lid manbalari</div>
+              <div style={{ fontWeight:800, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:6 }}><Target size={13} style={{color:"var(--brand)"}}/> Lid manbalari</div>
               {leadSources.length ? (
                 <div style={{ display:"flex", alignItems:"center", gap:20 }}>
                   <SvgDonut slices={leadSources} size={110} />
@@ -1348,7 +1503,7 @@ function Reports({ t, data, stats, sub, setSub }) {
             </Card>
             {/* Holat */}
             <Card className="pad">
-              <div style={{ fontWeight:800, fontSize:13, marginBottom:14 }}>👥 Talabalar holati</div>
+              <div style={{ fontWeight:800, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:6 }}><Users size={13} style={{color:"var(--brand)"}}/> Talabalar holati</div>
               {[
                 ["Faol",      (data.students||[]).filter(s=>(s.status||"active")==="active").length, "#10b981"],
                 ["Muzlatilgan",(data.students||[]).filter(s=>s.status==="frozen").length,             "#f59e0b"],
@@ -1371,8 +1526,8 @@ function Reports({ t, data, stats, sub, setSub }) {
       {sub === "attendance" && (
         <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
           <Card className="pad">
-            <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:16 }}>
-              📋 Guruhlar bo'yicha davomat
+            <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)", marginBottom:16, display:"flex", alignItems:"center", gap:7 }}>
+              <ClipboardCheck size={15} style={{color:"var(--brand)"}}/> Guruhlar bo'yicha davomat
             </div>
             {attGroups.length ? (
               <SvgLineChart points={attGroups.map(g => ({ label: g.label.slice(0,6), v: g.v }))} color="#10b981" />
@@ -1414,6 +1569,7 @@ function Reports({ t, data, stats, sub, setSub }) {
 
 function Settings({ t, data, setModal, loadAll }) {
   const toast = useToast();
+  const [settingTab, setSettingTab] = useState("general");
   const s = (data.settings || [])[0] || {};
   const [form, setFormData] = useState({
     center_name: s.center_name || "X-MASTER Pro",
@@ -1459,7 +1615,26 @@ function Settings({ t, data, setModal, loadAll }) {
   ];
 
   return (
-    <div className="page-enter grid2">
+    <div className="page-enter" style={{display:"flex",flexDirection:"column",gap:16}}>
+      {/* Tab navigatsiya */}
+      <div className="filter-tabs" style={{width:"fit-content"}}>
+        {[
+          ["general",  SettingsIcon, "Umumiy"       ],
+          ["users",    Users,         "Foydalanuvchilar"],
+          ["branches", Building2,     "Filiallar"    ],
+          ["roles",    Shield,        "Rollar"       ],
+          ["stats",    BarChart3,     "Statistika"   ],
+          ["telegram", Send,          "Telegram"     ],
+        ].map(([id, Icon, label]) => (
+          <button key={id} className={`filter-tab ${settingTab===id?"on":""}`} onClick={()=>setSettingTab(id)}>
+            <Icon size={12}/> {label}
+          </button>
+        ))}
+      </div>
+
+      {/* === UMUMIY === */}
+      {settingTab === "general" && (
+      <div className="grid2">
       {/* Markaz ma'lumoti */}
       <Card className="pad">
         <div className="card-hd" style={{ marginBottom:18 }}>
@@ -1538,8 +1713,79 @@ function Settings({ t, data, setModal, loadAll }) {
         </div>
       </Card>
 
-      {/* Telegram sozlamalari — to'liq 2 ustun */}
-      <TelegramSettings data={data} toast={toast} />
+      </div>
+      )}
+
+      {/* === FOYDALANUVCHILAR === */}
+      {settingTab === "users" && (
+        <UserManager data={data} loadAll={loadAll} toast={toast} />
+      )}
+
+      {/* === FILIALLAR === */}
+      {settingTab === "branches" && (
+        <BranchManager data={data} loadAll={loadAll} toast={toast} setModal={setModal} />
+      )}
+
+      {/* === ROLLAR === */}
+      {settingTab === "roles" && (
+        <Card className="pad" style={{maxWidth:520}}>
+          <div className="card-hd" style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:32,height:32,borderRadius:9,background:"#f5f3ff",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <Shield size={15} strokeWidth={1.75} style={{color:"var(--purple)"}}/>
+              </div>
+              <div className="card-title">Rollar / Ruxsatlar</div>
+            </div>
+          </div>
+          {[
+            {role:"Superadmin",  desc:"Barcha funksiyalar",   tone:"green",  Icon:Shield    },
+            {role:"Admin",       desc:"Asosiy funksiyalar",    tone:"blue",   Icon:UserCircle},
+            {role:"O'qituvchi",  desc:"Davomat va jadval",     tone:"orange", Icon:GraduationCap},
+            {role:"Kassa",       desc:"Moliya bo'limi",        tone:"purple", Icon:CreditCard},
+            {role:"Talaba",      desc:"O'z resurslari",        tone:"cyan",   Icon:Users},
+          ].map(({role,desc,tone,Icon:I})=>(
+            <div key={role} className="line" style={{alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:9}}>
+                <div style={{width:30,height:30,borderRadius:8,background:"var(--card2)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <I size={13} strokeWidth={1.75} style={{color:"var(--t3)"}}/>
+                </div>
+                <div>
+                  <div style={{fontWeight:800,fontSize:12.5,color:"var(--t1)"}}>{role}</div>
+                  <div style={{fontSize:10.5,color:"var(--t4)"}}>{desc}</div>
+                </div>
+              </div>
+              <Pill type={tone}>Faol</Pill>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* === STATISTIKA === */}
+      {settingTab === "stats" && (
+        <Card className="pad" style={{maxWidth:600}}>
+          <div className="card-hd" style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:32,height:32,borderRadius:9,background:"#eff6ff",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <BarChart3 size={15} strokeWidth={1.75} style={{color:"var(--brand)"}}/>
+              </div>
+              <div className="card-title">Tizim statistikasi</div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {STATS_DATA.map(([label,val,color])=>(
+              <div key={label} style={{background:"var(--card2)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 14px"}}>
+                <div style={{fontSize:22,fontWeight:900,color,fontFamily:"'Plus Jakarta Sans',sans-serif",letterSpacing:"-.3px"}}>{val}</div>
+                <div style={{fontSize:11,color:"var(--t4)",marginTop:3,fontWeight:500}}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* === TELEGRAM === */}
+      {settingTab === "telegram" && (
+        <TelegramSettings data={data} toast={toast} />
+      )}
     </div>
   );
 }
@@ -1628,6 +1874,197 @@ function BranchManager({ data, loadAll, toast, setModal }) {
   );
 }
 
+/* ── User Manager ─────────────────────────────────────────────────── */
+function UserManager({ data, loadAll, toast }) {
+  const confirm = useConfirm();
+  const [adding, setAdding] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [form, setForm] = useState({ username:"", password:"", full_name:"", role:"teacher", linked_id:"", group_name:"", color:"#7c3aed", is_active:true });
+  const [saving, setSaving] = useState(false);
+
+  const users = data.app_users || [];
+
+  const roleColors = { superadmin:"#4f6ef7", admin:"#7c3aed", teacher:"#10b981", reception:"#f59e0b", student:"#06b6d4" };
+  const roleIcons  = { superadmin:Shield, admin:UserCircle, teacher:GraduationCap, reception:Phone, student:Users };
+
+  const openAdd = () => {
+    setForm({ username:"", password:"", full_name:"", role:"teacher", linked_id:"", group_name:"", color:"#7c3aed", is_active:true });
+    setEditRow(null); setAdding(true);
+  };
+  const openEdit = u => { setForm({...u}); setEditRow(u); setAdding(true); };
+
+  const save = async () => {
+    if (!form.username || !form.full_name) return toast("Username va ism majburiy","warning");
+    if (!editRow && !form.password) return toast("Parol majburiy","warning");
+    setSaving(true);
+    try {
+      if (editRow) {
+        const { password, ...rest } = form;
+        const upd = password ? form : rest;
+        const { error } = await db.from("app_users").update(upd).eq("id", editRow.id);
+        if (error) throw error;
+        toast("Yangilandi");
+      } else {
+        const { error } = await db.from("app_users").insert(form);
+        if (error) throw error;
+        toast("Qo'shildi");
+      }
+      setAdding(false); loadAll();
+    } catch(e){ toast(e.message,"error"); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async u => {
+    if (!await confirm(`"${u.full_name}" foydalanuvchisini o'chirasizmi?`)) return;
+    await db.from("app_users").delete().eq("id", u.id);
+    toast("O'chirildi"); loadAll();
+  };
+
+  const toggleActive = async u => {
+    await db.from("app_users").update({ is_active: !u.is_active }).eq("id", u.id);
+    toast(u.is_active ? "O'chirildi" : "Faollashtirildi"); loadAll();
+  };
+
+  const roleOpts = [
+    {v:"superadmin",l:"Superadmin"},{v:"admin",l:"Admin"},
+    {v:"teacher",l:"O'qituvchi"},{v:"reception",l:"Resepshen"},{v:"student",l:"Talaba"},
+  ];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:15,color:"var(--t1)",display:"flex",alignItems:"center",gap:8}}>
+          <Users size={16} style={{color:"var(--brand)"}}/>
+          Foydalanuvchilar ({users.length})
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={openAdd}>
+          <Plus size={13}/> Qo'shish
+        </button>
+      </div>
+
+      {/* Add/Edit form */}
+      {adding && (
+        <Card className="pad" style={{border:"2px solid var(--brand-brd)",boxShadow:"var(--brand-glo)"}}>
+          <div style={{fontWeight:800,fontSize:13,marginBottom:14,display:"flex",alignItems:"center",gap:7,color:"var(--brand)"}}>
+            <UserCircle size={15}/> {editRow ? "Tahrirlash" : "Yangi foydalanuvchi"}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            <label style={{display:"flex",flexDirection:"column",gap:5}}>
+              <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>To'liq ism *</span>
+              <input value={form.full_name} onChange={e=>setForm(f=>({...f,full_name:e.target.value}))} placeholder="Ism Familiya"/>
+            </label>
+            <label style={{display:"flex",flexDirection:"column",gap:5}}>
+              <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>Username *</span>
+              <input value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))} placeholder="login_nomi"/>
+            </label>
+            <label style={{display:"flex",flexDirection:"column",gap:5}}>
+              <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>Parol {editRow?"(bo'sh = o'zgarmaydi)":"*"}</span>
+              <input type="password" value={form.password||""} onChange={e=>setForm(f=>({...f,password:e.target.value}))} placeholder="••••••"/>
+            </label>
+            <label style={{display:"flex",flexDirection:"column",gap:5}}>
+              <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>Rol</span>
+              <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))}>
+                {roleOpts.map(o=><option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </label>
+            {form.role === "teacher" && (
+              <label style={{display:"flex",flexDirection:"column",gap:5}}>
+                <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>O'qituvchi (bog'lash)</span>
+                <select value={form.linked_id||""} onChange={e=>setForm(f=>({...f,linked_id:e.target.value}))}>
+                  <option value="">— Tanlang —</option>
+                  {(data.teachers||[]).map(tc=><option key={tc.id} value={tc.id}>{tc.full_name}</option>)}
+                </select>
+              </label>
+            )}
+            {form.role === "student" && (
+              <>
+                <label style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>Talaba (bog'lash)</span>
+                  <select value={form.linked_id||""} onChange={e=>setForm(f=>({...f,linked_id:e.target.value}))}>
+                    <option value="">— Tanlang —</option>
+                    {(data.students||[]).map(s=><option key={s.id} value={s.id}>{s.full_name}</option>)}
+                  </select>
+                </label>
+                <label style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>Guruh</span>
+                  <select value={form.group_name||""} onChange={e=>setForm(f=>({...f,group_name:e.target.value}))}>
+                    <option value="">— Tanlang —</option>
+                    {(data.study_groups||[]).map(g=><option key={g.id} value={g.name}>{g.name}</option>)}
+                  </select>
+                </label>
+              </>
+            )}
+            <label style={{display:"flex",flexDirection:"column",gap:5}}>
+              <span style={{fontSize:11,fontWeight:600,color:"var(--t3)"}}>Rang</span>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input type="color" value={form.color||"#7c3aed"} onChange={e=>setForm(f=>({...f,color:e.target.value}))} style={{width:40,height:36,border:"none",borderRadius:8,cursor:"pointer",padding:2}}/>
+                <input value={form.color||""} onChange={e=>setForm(f=>({...f,color:e.target.value}))} style={{flex:1}} placeholder="#7c3aed"/>
+              </div>
+            </label>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
+              {saving ? <><RefreshCw size={12} className="spin"/> Saqlanmoqda...</> : <><Save size={12}/> Saqlash</>}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>setAdding(false)}>Bekor</button>
+          </div>
+        </Card>
+      )}
+
+      {/* Users list */}
+      <Card>
+        <table className="tbl">
+          <thead><tr><th>Ism</th><th>Username</th><th>Rol</th><th>Bog'liq</th><th>Holat</th><th>Amal</th></tr></thead>
+          <tbody>
+            {users.map(u => {
+              const RIcon = roleIcons[u.role] || User;
+              return (
+                <tr key={u.id} className="tbl-row">
+                  <td>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:32,height:32,borderRadius:50,background:u.color||"var(--brand)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:800,flexShrink:0}}>
+                        {(u.full_name||u.username||"U").slice(0,2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:13}}>{u.full_name}</div>
+                        <div style={{fontSize:11,color:"var(--t4)"}}>{u.username}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{fontFamily:"monospace",fontSize:12,color:"var(--t3)"}}>{u.username}</td>
+                  <td>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:20,background:roleColors[u.role]+"22",color:roleColors[u.role],fontSize:11,fontWeight:700}}>
+                      <RIcon size={10}/> {roleOpts.find(r=>r.v===u.role)?.l || u.role}
+                    </span>
+                  </td>
+                  <td style={{fontSize:12,color:"var(--t3)"}}>
+                    {u.group_name || (data.teachers||[]).find(tc=>tc.id===u.linked_id)?.full_name || (data.students||[]).find(s=>s.id===u.linked_id)?.full_name || "—"}
+                  </td>
+                  <td>
+                    <button onClick={()=>toggleActive(u)} style={{background:u.is_active?"#dcfce7":"#fee2e2",color:u.is_active?"#166534":"#991b1b",border:"none",borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                      {u.is_active ? "Faol" : "Bloklangan"}
+                    </button>
+                  </td>
+                  <td><div className="row-btns">
+                    <button className="btn btn-ghost btn-xs" onClick={()=>openEdit(u)}><Pencil size={11}/></button>
+                    <button className="btn btn-ghost btn-xs danger" onClick={()=>remove(u)}><Trash2 size={11}/></button>
+                  </div></td>
+                </tr>
+              );
+            })}
+            {!users.length && (
+              <tr><td colSpan={6}>
+                <Empty text="Foydalanuvchilar yo'q" sub="Qo'shish tugmasini bosing" icon={<Users size={28} strokeWidth={1} style={{color:"var(--t4)"}}/>}/>
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
 /* ── Telegram Settings ───────────────────────────────────────────── */
 function TelegramSettings({ data, toast }) {
   const [token,   setToken]   = useState(localStorage.getItem("xm_tg_token")  || "");
@@ -1680,15 +2117,15 @@ function TelegramSettings({ data, toast }) {
   return (
     <div style={{ gridColumn:"1/-1", background:"var(--card)", border:"1px solid var(--line)", borderRadius:"var(--r)", padding:20, boxShadow:"var(--sh1)" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
-        <div style={{ width:36, height:36, borderRadius:10, background:"#e0f2fe", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
-          ✈️
+        <div style={{ width:36, height:36, borderRadius:10, background:"#e0f2fe", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Send size={18} style={{color:"#0ea5e9"}}/>
         </div>
         <div>
           <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:14, color:"var(--t1)" }}>Telegram Bot Integratsiya</div>
           <div style={{ fontSize:11, color:"var(--t4)" }}>Xabar yuborish, bildirishnomalar, qarzdorlar ro'yxati</div>
         </div>
-        {status === "ok"    && <span style={{ marginLeft:"auto", background:"#dcfce7", color:"#166534", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700 }}>✓ Ulangan</span>}
-        {status === "error" && <span style={{ marginLeft:"auto", background:"#fee2e2", color:"#991b1b", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700 }}>✕ Xato</span>}
+        {status === "ok"    && <span style={{ marginLeft:"auto", background:"#dcfce7", color:"#166534", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", gap:5 }}><CheckCircle2 size={12}/> Ulangan</span>}
+        {status === "error" && <span style={{ marginLeft:"auto", background:"#fee2e2", color:"#991b1b", borderRadius:8, padding:"4px 12px", fontSize:11, fontWeight:700, display:"flex", alignItems:"center", gap:5 }}><XCircle size={12}/> Xato</span>}
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
@@ -1723,10 +2160,10 @@ function TelegramSettings({ data, toast }) {
         </button>
         <button className="btn btn-ghost btn-sm" onClick={sendTest} disabled={sending}>
           {sending ? <><RefreshCw size={12} className="spin"/> Yuborilmoqda...</>
-                   : <>✈️ Test xabar yuborish</>}
+                   : <><Send size={12}/> Test xabar yuborish</>}
         </button>
         <button className="btn btn-ghost btn-sm danger" onClick={sendDebtors} disabled={sending}>
-          ⚠️ Qarzdorlarga xabar ({(data.students||[]).filter(s=>Number(s.balance||0)<0).length} ta)
+          <AlertTriangle size={12}/> Qarzdorlarga xabar ({(data.students||[]).filter(s=>Number(s.balance||0)<0).length} ta)
         </button>
       </div>
     </div>
@@ -1800,7 +2237,7 @@ function ModalForm({ modal, t, data, close, loadAll }) {
       {k:"student_name",label:"Talaba",req:true,type:"select",opts:(data.students||[]).map(s=>({v:s.full_name,l:s.full_name}))},
       {k:"group_name",label:"Guruh",type:"select",opts:(data.study_groups||[]).map(g=>({v:g.name,l:g.name}))},
       {k:"lesson_date",label:"Sana",req:true,type:"date"},
-      {k:"status",label:"Holat",req:true,type:"select",opts:[{v:"present",l:"Keldi ✓"},{v:"absent",l:"Kelmadi ✗"},{v:"late",l:"Kechikdi !"},{v:"excused",l:"Sababli"}]},
+      {k:"status",label:"Holat",req:true,type:"select",opts:[{v:"present",l:"Keldi"},{v:"absent",l:"Kelmadi"},{v:"late",l:"Kechikdi"},{v:"excused",l:"Sababli"}]},
       {k:"note",label:"Sabab",full:true}
     ]},
     schedule: { title: "Dars qo'shish", table: "schedules", fields: [
@@ -1838,7 +2275,7 @@ function ModalForm({ modal, t, data, close, loadAll }) {
     ]},
     loan: { title: "Kitob berish", table: "library_loans", fields: [
       {k:"book_title",label:"Kitob",req:true,type:"select",opts:(data.library_books||[]).map(b=>({v:b.title,l:b.title}))},
-      {k:"borrower_name",label:"Oluvchi",req:true,type:"select",opts:[...(data.students||[]).map(s=>({v:s.full_name,l:`👥 ${s.full_name}`})),...(data.teachers||[]).map(tc=>({v:tc.full_name,l:`🧑‍🏫 ${tc.full_name}`}))]},
+      {k:"borrower_name",label:"Oluvchi",req:true,type:"select",opts:[...(data.students||[]).map(s=>({v:s.full_name,l:`Talaba: ${s.full_name}`})),...(data.teachers||[]).map(tc=>({v:tc.full_name,l:`O'qituvchi: ${tc.full_name}`}))]},
       {k:"borrower_type",label:"Tur",type:"select",opts:[{v:"student",l:"Talaba"},{v:"teacher",l:"O'qituvchi"}]},
       {k:"issue_date",label:"Berilgan sana",type:"date"},{k:"due_date",label:"Qaytarish muddati",type:"date"},{k:"note",label:"Izoh",full:true}
     ]},
@@ -1926,7 +2363,7 @@ function ModalForm({ modal, t, data, close, loadAll }) {
       <div className="modal modal-w" role="dialog" aria-modal="true">
         <div className="modal-head">
           <b>{cfg.title}</b>
-          <button className="m-close" onClick={close} disabled={saving}>×</button>
+          <button className="m-close" onClick={close} disabled={saving}><X size={14}/></button>
         </div>
         <div className="m-body">
           {cfg.fields.map(({ k, label, type = "text", opts, full, req }, idx) => (

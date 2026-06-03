@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Eye, EyeOff, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Lock, User, Crown, ShieldCheck, GraduationCap, Headphones, AlertCircle, ArrowRight } from "lucide-react";
+import { supabase as db } from "../lib/supabase.js";
 
 const USERS = [
   { username:"superadmin", password:"admin123",  role:"superadmin", name:"Super Admin",    avatar:"SA", color:"#4f6ef7" },
@@ -8,11 +9,11 @@ const USERS = [
   { username:"reception",  password:"recep123",  role:"reception",  name:"Resepshen",      avatar:"RE", color:"#f59e0b" },
 ];
 
-const ROLE_LABELS = {
-  superadmin:"👑 Superadmin",
-  admin:"🛡️ Admin",
-  teacher:"👨‍🏫 O'qituvchi",
-  reception:"🎧 Resepshen",
+const ROLE_DEFS = {
+  superadmin: { Icon: Crown,         label: "Superadmin"  },
+  admin:      { Icon: ShieldCheck,   label: "Admin"       },
+  teacher:    { Icon: GraduationCap, label: "O'qituvchi" },
+  reception:  { Icon: Headphones,    label: "Resepshen"   },
 };
 
 export default function Login({ onLogin }) {
@@ -22,6 +23,7 @@ export default function Login({ onLogin }) {
   const [error,    setError]    = useState("");
   const [loading,  setLoading]  = useState(false);
   const [lang,     setLang]     = useState(localStorage.getItem("xm_lang") || "uz");
+  const [showDemo, setShowDemo] = useState(false);
 
   const LABELS = {
     uz:{ title:"O'quv markaz tizimi", user:"Foydalanuvchi nomi", pass:"Parol", btn:"Kirish", demo:"Demo hisoblar", err:"Login yoki parol noto'g'ri", welcome:"Xush kelibsiz!" },
@@ -33,16 +35,36 @@ export default function Login({ onLogin }) {
   const handleLogin = async (e) => {
     e?.preventDefault();
     setLoading(true); setError("");
-    await new Promise(r => setTimeout(r, 500));
-    const user = USERS.find(u => u.username === username.trim() && u.password === password);
-    if (user) {
-      localStorage.setItem("xm_user", JSON.stringify(user));
-      localStorage.setItem("xm_lang", lang);
-      onLogin(user);
-    } else {
+    try {
+      // 1) Avval hardcoded admin/superadmin ni tekshir
+      const builtIn = USERS.find(u => u.username === username.trim() && u.password === password);
+      if (builtIn) {
+        localStorage.setItem("xm_user", JSON.stringify(builtIn));
+        localStorage.setItem("xm_lang", lang);
+        onLogin(builtIn); return;
+      }
+      // 2) Supabase app_users jadvalini tekshir
+      const { data: rows } = await db.from("app_users")
+        .select("*").eq("username", username.trim()).eq("is_active", true).limit(1);
+      const dbUser = rows?.[0];
+      if (dbUser && dbUser.password === password) {
+        const user = {
+          id: dbUser.id,
+          username: dbUser.username,
+          name: dbUser.full_name || dbUser.username,
+          role: dbUser.role,
+          color: dbUser.color || "#7c3aed",
+          avatar: (dbUser.full_name || dbUser.username || "U").slice(0,2).toUpperCase(),
+          linked_id: dbUser.linked_id,
+          group_name: dbUser.group_name,
+        };
+        localStorage.setItem("xm_user", JSON.stringify(user));
+        localStorage.setItem("xm_lang", lang);
+        onLogin(user); return;
+      }
       setError(L.err);
-    }
-    setLoading(false);
+    } catch { setError(L.err); }
+    finally { setLoading(false); }
   };
 
   const quickFill = (u) => { setUsername(u.username); setPassword(u.password); setError(""); };
@@ -57,10 +79,15 @@ export default function Login({ onLogin }) {
 
       {/* Lang */}
       <div className="login-lang-bar">
-        {["uz","ru","en"].map(l => (
-          <button key={l} className={`login-lang-btn ${lang===l?"on":""}`}
-            onClick={() => { setLang(l); localStorage.setItem("xm_lang",l); }}>
-            {l === "uz" ? "🇺🇿 UZ" : l === "ru" ? "🇷🇺 RU" : "🇬🇧 EN"}
+        {[
+          {v:"uz", color:"#1eb53a", label:"UZ"},
+          {v:"ru", color:"#d52b1e", label:"RU"},
+          {v:"en", color:"#012169", label:"EN"},
+        ].map(l => (
+          <button key={l.v} className={`login-lang-btn ${lang===l.v?"on":""}`}
+            onClick={() => { setLang(l.v); localStorage.setItem("xm_lang",l.v); }}>
+            <span className="lang-flag" style={{background:l.color}}>{l.label}</span>
+            {l.label}
           </button>
         ))}
       </div>
@@ -114,33 +141,44 @@ export default function Login({ onLogin }) {
 
           {error && (
             <div className="login-error-box">
-              <span>⚠</span> {error}
+              <AlertCircle size={14} style={{flexShrink:0}}/> {error}
             </div>
           )}
 
           <button type="submit" className="login-submit-btn" disabled={loading}>
             {loading
               ? <><span className="login-spin" /> Kirish...</>
-              : <>{L.btn} →</>}
+              : <>{L.btn} <ArrowRight size={15}/></>}
           </button>
         </form>
 
         {/* Demo accounts */}
-        <div className="login-divider"><span>{L.demo}</span></div>
-        <div className="login-demo-grid">
-          {USERS.map(u => (
-            <button key={u.username} className="login-demo-card"
-              onClick={() => quickFill(u)}>
-              <div className="login-demo-av" style={{ background: u.color }}>
-                {u.avatar}
-              </div>
-              <div>
-                <div className="login-demo-role">{ROLE_LABELS[u.role]}</div>
-                <div className="login-demo-cred">{u.username}</div>
-              </div>
-            </button>
-          ))}
+        <div className="login-divider">
+          <button className="login-demo-toggle" onClick={() => setShowDemo(v => !v)}>
+            <span>{L.demo}</span>
+            <span className="login-demo-arrow" style={{transform: showDemo ? "rotate(180deg)" : "rotate(0deg)"}}>▾</span>
+          </button>
         </div>
+        {showDemo && (
+          <div className="login-demo-grid">
+            {USERS.map(u => {
+              const { Icon, label } = ROLE_DEFS[u.role] || { Icon: User, label: u.role };
+              return (
+                <button key={u.username} className="login-demo-card" onClick={() => quickFill(u)}>
+                  <div className="login-demo-av" style={{ background: u.color }}>
+                    {u.avatar}
+                  </div>
+                  <div>
+                    <div className="login-demo-role" style={{display:"flex",alignItems:"center",gap:5}}>
+                      <Icon size={11}/> {label}
+                    </div>
+                    <div className="login-demo-cred">{u.username}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="login-footer-bar">X-MASTER Pro v3.0 · © 2025</div>

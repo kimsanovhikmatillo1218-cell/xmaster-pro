@@ -1,4 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  CheckCircle2, XCircle, AlertCircle, AlertTriangle,
+  Banknote, CreditCard, Building2, Smartphone,
+  Home, User, Zap, Monitor, Megaphone, Wrench, Coffee, Package,
+  ChevronDown, Check
+} from "lucide-react";
 import { initials } from "../../lib/utils.js";
 
 /* ─── Toast ──────────────────────────────────────────────────────── */
@@ -19,7 +25,9 @@ export function ToastProvider({ children }) {
       <div className="toast-wrap" aria-live="polite">
         {list.map(x => (
           <div key={x.id} className={`toast toast-${x.type}`} onClick={() => rm(x.id)}>
-            <span className="toast-ico">{x.type === "success" ? "✓" : x.type === "error" ? "✕" : "!"}</span>
+            <span className="toast-ico">
+              {x.type === "success" ? <CheckCircle2 size={14}/> : x.type === "error" ? <XCircle size={14}/> : <AlertCircle size={14}/>}
+            </span>
             {x.msg}
           </div>
         ))}
@@ -48,7 +56,7 @@ export function ConfirmProvider({ children }) {
       {s && (
         <div className="backdrop" style={{ zIndex: 700 }} onClick={() => done(false)}>
           <div className="confirm-box" onClick={e => e.stopPropagation()}>
-            <div className="confirm-ico">⚠️</div>
+            <div className="confirm-ico"><AlertTriangle size={32} strokeWidth={1.5} style={{color:"var(--yellow)"}}/></div>
             <p className="confirm-msg">{s.msg}</p>
             <div className="confirm-btns">
               <button className="btn btn-ghost" onClick={() => done(false)}>Bekor qilish</button>
@@ -386,18 +394,38 @@ export function Empty({ text = "Ma'lumot yo'q", icon = "", sub, action, onAction
 
 /* ─── Method Badge ───────────────────────────────────────────────── */
 export function MethodBadge({ method }) {
-  const MAP = { cash: "💵 Naqd", card: "💳 Karta", transfer: "🏦 O'tkazma", online: "📱 Online" };
-  return <span style={{ fontSize: 12, color: "var(--t4)", fontWeight: 500 }}>{MAP[method] || method || "—"}</span>;
+  const MAP = {
+    cash:     { Icon: Banknote,   label: "Naqd"     },
+    card:     { Icon: CreditCard, label: "Karta"    },
+    transfer: { Icon: Building2,  label: "O'tkazma" },
+    online:   { Icon: Smartphone, label: "Online"   },
+  };
+  const { Icon, label } = MAP[method] || { Icon: null, label: method || "—" };
+  return (
+    <span style={{ fontSize:12, color:"var(--t4)", fontWeight:500, display:"inline-flex", alignItems:"center", gap:4 }}>
+      {Icon && <Icon size={11}/>} {label}
+    </span>
+  );
 }
 
 /* ─── Category Badge ─────────────────────────────────────────────── */
 export function CategoryBadge({ cat }) {
   const MAP = {
-    rent: "🏠 Ijara", salary: "👤 Maosh", utility: "⚡ Kommunal",
-    equipment: "🖥 Jihozlar", marketing: "📣 Marketing",
-    repair: "🔧 Ta'mirlash", food: "🍕 Ovqat", other: "📦 Boshqa",
+    rent:      { Icon: Home,      label: "Ijara"      },
+    salary:    { Icon: User,      label: "Maosh"      },
+    utility:   { Icon: Zap,       label: "Kommunal"   },
+    equipment: { Icon: Monitor,   label: "Jihozlar"   },
+    marketing: { Icon: Megaphone, label: "Marketing"  },
+    repair:    { Icon: Wrench,    label: "Ta'mirlash" },
+    food:      { Icon: Coffee,    label: "Ovqat"      },
+    other:     { Icon: Package,   label: "Boshqa"     },
   };
-  return <span style={{ fontSize: 12 }}>{MAP[cat] || cat || "—"}</span>;
+  const { Icon, label } = MAP[cat] || { Icon: Package, label: cat || "—" };
+  return (
+    <span style={{ fontSize:12, display:"inline-flex", alignItems:"center", gap:4, color:"var(--t3)" }}>
+      {Icon && <Icon size={11} style={{ color:"var(--t4)" }}/>} {label}
+    </span>
+  );
 }
 
 /* ─── Notice ─────────────────────────────────────────────────────── */
@@ -426,6 +454,50 @@ export function FinanceLine({ name, sub, amount, date }) {
       </div>
       <div className="pay-amt green">{amount}</div>
       <div className="pay-date">{date}</div>
+    </div>
+  );
+}
+
+/* ─── Custom Select (Premium Dropdown) ──────────────────────────── */
+export function CustomSelect({ value, onChange, options = [], placeholder = "— Tanlang —", className = "", style }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = options.find(o => (o.v ?? o) === value);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const pick = v => { onChange(v); setOpen(false); };
+
+  return (
+    <div ref={ref} className={`csel ${open ? "csel-open" : ""} ${className}`} style={style}>
+      <button type="button" className="csel-trigger" onClick={() => setOpen(o => !o)}>
+        <span className={`csel-val ${!selected ? "csel-ph" : ""}`}>
+          {selected ? (selected.l ?? selected) : placeholder}
+        </span>
+        <ChevronDown size={14} className="csel-arrow" />
+      </button>
+      {open && (
+        <div className="csel-panel">
+          <div className="csel-item csel-ph-item" onClick={() => pick("")}>{placeholder}</div>
+          {options.map((o, i) => {
+            const v = o.v ?? o;
+            const l = o.l ?? o;
+            const active = v === value;
+            return (
+              <div key={i} className={`csel-item ${active ? "csel-active" : ""}`} onClick={() => pick(v)}>
+                <span className="csel-check-wrap">
+                  {active && <Check size={12} className="csel-check-icon" />}
+                </span>
+                {l}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

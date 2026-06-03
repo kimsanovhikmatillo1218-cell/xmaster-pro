@@ -4,7 +4,7 @@ export const TABLES = [
   "leads","notifications","settings","rooms",
   "tests","test_questions","test_results",
   "homework","grades","library_books","library_loans",
-  "resources","tasks","salary_payments"
+  "resources","tasks","salary_payments","app_users"
 ];
 
 export const ORDERED_TABLES = new Set([
@@ -44,20 +44,20 @@ export const WEEK_DAYS = ["Dushanba","Seshanba","Chorshanba","Payshanba","Juma",
 export const TIMES = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
 
 export const EXPENSE_CATS = [
-  {v:"rent",      l:"🏠 Ijara"},
-  {v:"salary",    l:"👤 Maosh"},
-  {v:"utility",   l:"⚡ Kommunal"},
-  {v:"equipment", l:"🖥 Jihozlar"},
-  {v:"marketing", l:"📣 Marketing"},
-  {v:"repair",    l:"🔧 Ta'mirlash"},
-  {v:"other",     l:"📦 Boshqa"},
+  {v:"rent",      l:"Ijara"},
+  {v:"salary",    l:"Maosh"},
+  {v:"utility",   l:"Kommunal"},
+  {v:"equipment", l:"Jihozlar"},
+  {v:"marketing", l:"Marketing"},
+  {v:"repair",    l:"Ta'mirlash"},
+  {v:"other",     l:"Boshqa"},
 ];
 
 export const PAYMENT_METHODS = [
-  {v:"cash",     l:"💵 Naqd"},
-  {v:"card",     l:"💳 Karta"},
-  {v:"transfer", l:"🏦 O'tkazma"},
-  {v:"online",   l:"📱 Online"},
+  {v:"cash",     l:"Naqd"},
+  {v:"card",     l:"Karta"},
+  {v:"transfer", l:"O'tkazma"},
+  {v:"online",   l:"Online"},
 ];
 
 export const SALARY_TYPES = [
@@ -67,27 +67,27 @@ export const SALARY_TYPES = [
 ];
 
 export const BOOK_CATS = [
-  {v:"textbook",  l:"📘 Darslik"},
-  {v:"fiction",   l:"📕 Badiiy"},
-  {v:"reference", l:"📗 Ma'lumotnoma"},
-  {v:"magazine",  l:"📰 Jurnal"},
-  {v:"other",     l:"📦 Boshqa"},
+  {v:"textbook",  l:"Darslik"},
+  {v:"fiction",   l:"Badiiy"},
+  {v:"reference", l:"Ma'lumotnoma"},
+  {v:"magazine",  l:"Jurnal"},
+  {v:"other",     l:"Boshqa"},
 ];
 
 export const RES_TYPES = [
-  {v:"document", l:"📄 Hujjat", icon:"📄", bg:"#eff6ff"},
-  {v:"video",    l:"🎬 Video",  icon:"🎬", bg:"#fef2f2"},
-  {v:"audio",    l:"🎵 Audio",  icon:"🎵", bg:"#fdf4ff"},
-  {v:"link",     l:"🔗 Havola", icon:"🔗", bg:"#f0fdf4"},
-  {v:"image",    l:"🖼 Rasm",   icon:"🖼", bg:"#fffbeb"},
-  {v:"other",    l:"📦 Boshqa", icon:"📦", bg:"#f1f5f9"},
+  {v:"document", l:"Hujjat",  bg:"#eff6ff"},
+  {v:"video",    l:"Video",   bg:"#fef2f2"},
+  {v:"audio",    l:"Audio",   bg:"#fdf4ff"},
+  {v:"link",     l:"Havola",  bg:"#f0fdf4"},
+  {v:"image",    l:"Rasm",    bg:"#fffbeb"},
+  {v:"other",    l:"Boshqa",  bg:"#f1f5f9"},
 ];
 
 export const PRIORITY_OPTS = [
-  {v:"low",    l:"⬇ Past",    color:"muted"},
-  {v:"medium", l:"➡ O'rta",   color:"blue"},
-  {v:"high",   l:"⬆ Yuqori",  color:"orange"},
-  {v:"urgent", l:"🔴 Shoshilinch", color:"red"},
+  {v:"low",    l:"Past",        color:"muted"},
+  {v:"medium", l:"O'rta",      color:"blue"},
+  {v:"high",   l:"Yuqori",     color:"orange"},
+  {v:"urgent", l:"Shoshilinch",color:"red"},
 ];
 
 export const PER_PAGE = 25;

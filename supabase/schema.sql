@@ -441,3 +441,22 @@ on conflict do nothing;
 insert into settings (center_name, phone, address)
 values ('X-MASTER Pro', '+998901234567', 'Toshkent')
 on conflict do nothing;
+
+-- ───────────────────────────────────────────────────────────────────
+-- APP USERS (Tizim foydalanuvchilari)
+-- ───────────────────────────────────────────────────────────────────
+create table if not exists app_users (
+  id          uuid primary key default uuid_generate_v4(),
+  username    text not null unique,
+  password    text not null,
+  full_name   text,
+  role        text default 'student' check (role in ('superadmin','admin','teacher','reception','student')),
+  color       text default '#7c3aed',
+  linked_id   uuid,
+  group_name  text,
+  is_active   boolean default true,
+  created_at  timestamptz default now()
+);
+
+alter table app_users enable row level security;
+create policy "Allow all for authenticated" on app_users for all using (true) with check (true);
