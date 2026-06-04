@@ -1,30 +1,49 @@
 {
   "appId": "uz.xmaster.pro",
   "appName": "X-MASTER Pro",
-  "webDir": "dist",
-  "bundledWebRuntime": false,
+  "webDir": "dist-mobile",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "allowNavigation": ["*.supabase.co", "*.supabase.io", "hwtqtmrehoxxhsblbkjy.supabase.co"]
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 2000,
-      "backgroundColor": "#f1f5f9",
+      "launchAutoHide": true,
+      "backgroundColor": "#7c3aed",
       "androidSplashResourceName": "splash",
-      "showSpinner": false
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
     },
     "StatusBar": {
-      "style": "Light",
-      "backgroundColor": "#2563eb"
-    }
-  },
-  "android": {
-    "buildOptions": {
-      "keystorePath": "release.keystore",
-      "keystoreAlias": "xmaster"
+      "style": "Dark",
+      "backgroundColor": "#7c3aed",
+      "overlaysWebView": false
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "App": {
+      "launchUrl": "/"
     }
   },
   "ios": {
-    "scheme": "XMasterPro"
+    "scheme": "XMasterPro",
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "backgroundColor": "#7c3aed",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "android": {
+    "backgroundColor": "#7c3aed",
+    "allowMixedContent": true,
+    "captureInput": true
   }
 }

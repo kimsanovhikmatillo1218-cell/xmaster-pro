@@ -1,0 +1,132 @@
+name: iOS Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'          # v2.1.0 tag push qilinganda ishga tushadi
+  workflow_dispatch:   # Qo'lda ham ishga tushirish mumkin
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options: [debug, release]
+
+jobs:
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-latest   # Apple Mac serveri — BEPUL!
+
+    steps:
+      # 1. Kod yuklab olish
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js o'rnatish
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. Paketlar o'rnatish
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Mobile build (Vite — base: './')
+      - name: Build web app for mobile
+        run: npx vite build --config vite.mobile.config.js
+
+      # 5. Capacitor iOS platformasi qo'shish
+      - name: Add iOS platform
+        run: npx cap add ios || echo "iOS already added"
+
+      # 6. Capacitor sync
+      - name: Sync Capacitor
+        run: npx cap sync ios
+
+      # 7. Xcode — CocoaPods
+      - name: Install CocoaPods
+        run: |
+          cd ios/App
+          pod install --repo-update
+
+      # 8. DEBUG build (sertifikatsiz — simulyator uchun)
+      - name: Build iOS (Debug - No signing)
+        if: github.event.inputs.build_type != 'release'
+        run: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            CODE_SIGNING_ALLOWED=NO \
+            BUILD_DIR=../../build \
+            clean build 2>&1 | xcpretty --color || true
+
+      # 9. RELEASE build (Apple sertifikat kerak)
+      - name: Setup signing certificates
+        if: github.event.inputs.build_type == 'release' && secrets.APPLE_CERT_DATA != ''
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERT_DATA }}
+          p12-password: ${{ secrets.APPLE_CERT_PASSWORD }}
+
+      - name: Build iOS IPA (Release)
+        if: github.event.inputs.build_type == 'release' && secrets.APPLE_CERT_DATA != ''
+        run: |
+          cd ios/App
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath ../../build/XMasterPro.xcarchive \
+            archive \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ secrets.PROVISIONING_PROFILE }}"
+
+          xcodebuild -exportArchive \
+            -archivePath ../../build/XMasterPro.xcarchive \
+            -exportPath ../../build/ipa \
+            -exportOptionsPlist ../../ExportOptions.plist
+
+      # 10. Artifact sifatida saqlash
+      - name: Upload IPA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: XMasterPro-iOS-${{ github.ref_name }}
+          path: |
+            build/**/*.ipa
+            build/**/*.app
+          retention-days: 30
+          if-no-files-found: warn
+
+      # 11. GitHub Release ga upload (tag bo'lsa)
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/**/*.ipa
+          name: X-MASTER Pro ${{ github.ref_name }}
+          body: |
+            ## X-MASTER Pro iOS App ${{ github.ref_name }}
+
+            ### O'rnatish:
+            1. IPA faylni yuklab oling
+            2. TestFlight orqali o'rnating
+            3. yoki Xcode → Window → Devices orqali o'rnating
+
+            ### Yangiliklar:
+            - Premium dizayn
+            - Haftalik davomat ko'rinishi
+            - Fayl yuklash
+            - Test savollari
+            - Foydalanuvchilar boshqaruvi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

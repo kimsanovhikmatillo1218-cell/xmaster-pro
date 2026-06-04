@@ -2521,3 +2521,149 @@ body.dark .toast-warning{background:#78350f;color:#fde68a;border-color:#92400e}
 .content::-webkit-scrollbar{width:5px}
 .content::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px}
 .content::-webkit-scrollbar-thumb:hover{background:var(--t4)}
+
+/* ══════════════════════════════════════════════════════════════════
+   iOS / MOBILE NATIVE — Capacitor safe area + touch optimizations
+══════════════════════════════════════════════════════════════════ */
+
+/* iOS safe area (notch, home indicator) */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* iOS status bar padding */
+.Capacitor .shell {
+  padding-top: var(--sat);
+}
+.Capacitor .login-screen {
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+}
+
+/* Touch — larger tap targets on mobile */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; padding: 0 18px; }
+  .btn-sm { min-height: 40px; }
+  .btn-xs { min-height: 36px; }
+
+  .nm { padding: 10px 12px; margin-bottom: 3px; }
+
+  .ib-btn { width: 48px; height: 48px; }
+
+  /* Bigger form elements */
+  input, select, textarea { height: 48px; font-size: 16px !important; }
+  textarea { height: auto; min-height: 96px; }
+
+  /* Prevent zoom on focus (iOS) */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  select { font-size: 16px !important; }
+
+  .login-input { font-size: 16px !important; }
+  .csel-trigger { height: 48px; font-size: 16px; }
+
+  /* Table scrollable */
+  .card { overflow-x: auto; }
+  .tbl { min-width: 500px; }
+}
+
+/* iOS full-screen layout when in app */
+@media (display-mode: standalone) {
+  html, body { height: 100%; overflow: hidden; }
+
+  .shell {
+    grid-template-columns: 0 0 1fr !important;
+  }
+  .iconbar { display: none !important; }
+  .sidebar  { display: none !important; }
+
+  .mob-nav { display: flex !important; }
+  .content  { padding-bottom: calc(70px + var(--sab)) !important; }
+
+  /* iOS home indicator space */
+  .mob-nav {
+    padding-bottom: max(var(--sab), 8px) !important;
+    height: calc(60px + var(--sab)) !important;
+  }
+
+  /* Topbar adapts */
+  .topbar {
+    margin: calc(var(--sat) + 8px) 12px 0 !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* Pull-to-refresh prevention */
+.content {
+  overscroll-behavior-y: contain;
+}
+
+/* iOS tap highlight remove */
+* { -webkit-tap-highlight-color: transparent; }
+a, button { -webkit-touch-callout: none; }
+
+/* Smooth scrolling on iOS */
+.content, .sb-nav, .csel-panel {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* iOS input shadow fix */
+input, textarea, select {
+  -webkit-appearance: none;
+}
+
+/* Loading bar at top (under notch) */
+.load-bar {
+  top: 0 !important;
+}
+
+/* Mobile KPI strip — 2 columns on phone */
+@media (max-width: 480px) {
+  .kpi-strip {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  .kpi { padding: 14px !important; }
+  .kpi-val { font-size: 18px !important; }
+
+  .g3, .g4 {
+    grid-template-columns: 1fr !important;
+  }
+  .grid2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .search-toolbar { flex-direction: column; }
+  .search-box-main { max-width: 100%; }
+
+  /* Hide sidebar elements on very small screens */
+  .tb-branch, .tb-right .lang-btn-group { display: none !important; }
+}
+
+/* Haptic feedback class (used via JS) */
+.haptic-tap { cursor: pointer; }
+
+/* Card tap highlight */
+.card.tap:active, .grp-card:active, .test-card:active {
+  transform: scale(0.98);
+  transition: transform 0.1s;
+}
+
+/* Bottom navigation mobile improvements */
+.mob-nav-btn {
+  -webkit-tap-highlight-color: rgba(124,58,237,0.1);
+  border-radius: 14px;
+  padding: 6px 8px;
+}
+.mob-nav-btn.on {
+  background: var(--brand3);
+}
+.mob-nav-btn.on svg {
+  filter: drop-shadow(0 2px 8px rgba(124,58,237,.5));
+}
