@@ -1,8 +1,12 @@
 {
   "name": "xmaster-pro",
   "private": true,
-  "version": "2.0.0",
-  "description": "X-MASTER Pro — O'quv Markaz Boshqaruvi Tizimi",
+  "version": "2.1.0",
+  "description": "X-MASTER Pro - Oquv Markaz Boshqaruvi Tizimi",
+  "author": {
+    "name": "X-MASTER Pro",
+    "email": "xmaster@gmail.com"
+  },
   "type": "module",
   "homepage": "https://kimsanovhikmatillo1218-cell.github.io/xmaster-pro",
   "main": "electron/main.js",
@@ -11,8 +15,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "gh-pages -d dist",
-    "electron:dev": "cross-env NODE_ENV=development concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder",
+    "electron:dev": "cross-env NODE_ENV=development concurrently \"vite --config vite.electron.config.js\" \"wait-on http://localhost:5174 && electron .\"",
+    "electron:build": "vite build --config vite.electron.config.js && electron-builder --win",
     "cap:add:android": "npx cap add android",
     "cap:add:ios": "npx cap add ios",
     "cap:sync": "npx cap sync",
@@ -22,13 +26,24 @@
   "build": {
     "appId": "uz.xmaster.pro",
     "productName": "X-MASTER Pro",
+    "copyright": "Copyright © 2025 X-MASTER Pro",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "electron"
     },
     "files": [
-      "dist/**/*",
-      "electron/**/*"
+      "dist-electron/**/*",
+      "electron/**/*",
+      "!electron/node_modules/**/*"
     ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "kimsanovhikmatillo1218-cell",
+      "repo": "xmaster-pro"
+    },
     "win": {
       "target": [
         {
@@ -36,29 +51,30 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "dist/favicon.svg"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "dist/favicon.svg"
-    },
-    "linux": {
-      "target": "AppImage"
+      "icon": "electron/icon.png",
+      "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "dist/favicon.svg",
-      "installerHeaderIcon": "dist/favicon.svg",
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "X-MASTER Pro"
+      "shortcutName": "X-MASTER Pro",
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
