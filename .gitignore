@@ -18,9 +18,15 @@ dist-mobile
 release/
 release-android/
 
-# iOS / Android native
+# iOS native (Mac da generatsiya qilinadi)
 ios/
-android/
+
+# Android — faqat build fayllarini ignore
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
 
 # Electron binaries
 *.exe

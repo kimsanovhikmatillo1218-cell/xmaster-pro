@@ -1,0 +1,137 @@
+name: Android Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'           # v2.1.0 tag push qilinganda
+  workflow_dispatch:    # Qo'lda ishga tushirish
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options: [debug, release]
+
+jobs:
+  build-android:
+    name: Build Android APK / AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Kodni yuklab olish
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js o'rnatish
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. Java (Android uchun kerak)
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # 4. Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 5. npm paketlar
+      - name: Install dependencies
+        run: npm ci
+
+      # 6. Mobile web build
+      - name: Build web app for mobile
+        run: npx vite build --config vite.mobile.config.js
+
+      # 7. Capacitor sync
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      # 8. Gradle wrapper ruxsat
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      # 9. DEBUG APK (sertifikatsiz)
+      - name: Build Debug APK
+        if: github.event.inputs.build_type != 'release'
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # 10. Keystore (release uchun) — GitHub Secrets dan
+      - name: Decode signing keystore
+        if: github.event.inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/xmaster.keystore
+
+      # 11. RELEASE APK va AAB
+      - name: Build Release APK + AAB
+        if: github.event.inputs.build_type == 'release' || startsWith(github.ref, 'refs/tags/')
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease bundleRelease \
+            -Pandroid.injected.signing.store.file=xmaster.keystore \
+            -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$KEY_PASSWORD \
+            --no-daemon
+
+      # 12. APK faylini topib nom berish
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          # Debug
+          find android/app/build/outputs/apk/debug -name "*.apk" -exec cp {} artifacts/XMasterPro-debug.apk \; 2>/dev/null || true
+          # Release
+          find android/app/build/outputs/apk/release -name "*.apk" -exec cp {} artifacts/XMasterPro-${{ github.ref_name }}.apk \; 2>/dev/null || true
+          find android/app/build/outputs/bundle/release -name "*.aab" -exec cp {} artifacts/XMasterPro-${{ github.ref_name }}.aab \; 2>/dev/null || true
+          ls -la artifacts/
+
+      # 13. Artifact sifatida saqlash
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: XMasterPro-Android-${{ github.ref_name || 'debug' }}
+          path: artifacts/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # 14. GitHub Release ga upload (tag bo'lsa)
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/XMasterPro-*.apk
+            artifacts/XMasterPro-*.aab
+          name: X-MASTER Pro ${{ github.ref_name }}
+          body: |
+            ## X-MASTER Pro Android ${{ github.ref_name }}
+
+            ### O'rnatish:
+            1. **APK** — to'g'ridan-to'g'ri o'rnating (telefon sozlamalarida "noma'lum manbalar"ni yoqing)
+            2. **AAB** — Google Play Store uchun
+
+            ### Yangiliklar:
+            - Premium dizayn
+            - Haftalik davomat ko'rinishi
+            - Fayl yuklash (Supabase Storage)
+            - Test savollari + rasm yuklash
+            - Foydalanuvchilar boshqaruvi
+            - O'quvchi / O'qituvchi rol tizimi
+            - Auto-update bildirisnomalar
+
+            ### Talablar:
+            - Android 7.0+ (API 24+)
+            - Internet ulanishi (Supabase)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
