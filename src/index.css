@@ -2517,6 +2517,12 @@ body.dark .toast-warning{background:#78350f;color:#fde68a;border-color:#92400e}
 .sb-footer-role{font-size:10px;color:rgba(255,255,255,.35);margin-top:1px;display:flex;align-items:center;gap:5px}
 .online-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulseDot 2.5s infinite}
 
+/* ── Profile drawer slide animation ───────────────────────────── */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
 /* ── Scroll bar ────────────────────────────────────────────────── */
 .content::-webkit-scrollbar{width:5px}
 .content::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px}

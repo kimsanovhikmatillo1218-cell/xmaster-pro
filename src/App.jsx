@@ -14,7 +14,8 @@ import {
   TrendingUp, TrendingDown, ArrowRight, Eye,
   CheckCircle2, XCircle, AlertCircle, Phone, Mail,
   MapPin, Award, Layers, Save, ChevronRight, Download,
-  Check, Minus, MessageSquare, ShieldOff, Send, AlertTriangle, Megaphone
+  Check, Minus, MessageSquare, ShieldOff, Send, AlertTriangle, Megaphone,
+  ExternalLink
 } from "lucide-react";
 import { supabase as db } from "./lib/supabase.js";
 import { getLang } from "./lib/i18n.js";
@@ -106,14 +107,15 @@ export default function App() {
 /* ── AppInner ────────────────────────────────────────────────────── */
 function AppInner({ user, onLogout }) {
   const toast = useToast();
-  const [lang,     setLang]     = useState(() => localStorage.getItem("xm_lang")  || "uz");
-  const [theme,    setTheme]    = useState(() => localStorage.getItem("xm_theme") || "light");
-  const [page,     setPage]     = useState("dash");
-  const [sub,      setSub]      = useState("home");
-  const [query,    setQuery]    = useState("");
-  const [data,     dispatch]    = useReducer(dataReducer, DEFAULT_DATA);
-  const [loading,  setLoading]  = useState(false);
-  const [modal,    setModal]    = useState(null);
+  const [lang,        setLang]        = useState(() => localStorage.getItem("xm_lang")  || "uz");
+  const [theme,       setTheme]       = useState(() => localStorage.getItem("xm_theme") || "light");
+  const [page,        setPage]        = useState("dash");
+  const [sub,         setSub]         = useState("home");
+  const [query,       setQuery]       = useState("");
+  const [data,        dispatch]       = useReducer(dataReducer, DEFAULT_DATA);
+  const [loading,     setLoading]     = useState(false);
+  const [modal,       setModal]       = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
   const [detail,   setDetail]   = useState(null);
   const [lastSync, setLastSync] = useState(null);
   const dq = useDebounce(query, 280);
@@ -310,7 +312,7 @@ function AppInner({ user, onLogout }) {
           ))}
         </nav>
 
-        <div className="sb-footer">
+        <div className="sb-footer" onClick={() => setShowProfile(true)} style={{cursor:"pointer"}} title="Profil va yuklab olish">
           <div className="sb-avatar" style={{ background: user?.color || "var(--brand)", flexShrink:0 }}>
             {(user?.name || user?.username || "X")[0].toUpperCase()}
           </div>
@@ -319,7 +321,7 @@ function AppInner({ user, onLogout }) {
             <div className="sb-footer-role"><span className="online-dot" /> {user?.role || "superadmin"}</div>
           </div>
           <button
-            onClick={onLogout}
+            onClick={e => { e.stopPropagation(); onLogout(); }}
             title="Chiqish"
             style={{ background:"transparent", border:"none", cursor:"pointer", color:"rgba(255,255,255,.3)", padding:"4px", borderRadius:"6px", display:"flex", alignItems:"center", flexShrink:0, transition:"color .15s" }}
             onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
@@ -442,6 +444,7 @@ function AppInner({ user, onLogout }) {
 
       {modal  && <ModalForm    modal={modal}   t={t} data={data} close={() => setModal(null)}  loadAll={loadAll} />}
       {detail && <DetailDrawer detail={detail} t={t} data={data} close={() => setDetail(null)} setModal={setModal} loadAll={loadAll} />}
+      {showProfile && <ProfileModal user={user} onClose={() => setShowProfile(false)} onLogout={onLogout} toast={toast} loadAll={loadAll} />}
 
       {/* ── Mobile Bottom Navigation ─────────────────────────────── */}
       <nav className="mob-nav">
@@ -2507,6 +2510,330 @@ function DetailDrawer({ detail, t, data, close, setModal, loadAll }) {
             <Trash2 size={13} /> Arxiv
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PROFILE MODAL — Profil + Ilovalar yuklab olish
+══════════════════════════════════════════════════════════════════ */
+function ProfileModal({ user, onClose, onLogout, toast, loadAll }) {
+  const [tab,       setTab]       = useState("profile");
+  const [editPwd,   setEditPwd]   = useState(false);
+  const [newPwd,    setNewPwd]    = useState("");
+  const [saving,    setSaving]    = useState(false);
+  const [release,   setRelease]   = useState(null);
+  const [loadingRel,setLoadingRel]= useState(false);
+
+  const REPO = "kimsanovhikmatillo1218-cell/xmaster-pro";
+  const RELEASES_URL = `https://github.com/${REPO}/releases/latest`;
+  const RELEASES_API = `https://api.github.com/repos/${REPO}/releases/latest`;
+
+  // GitHub Releases API dan yangi versiya olish
+  useEffect(() => {
+    if (tab !== "download") return;
+    setLoadingRel(true);
+    fetch(RELEASES_API)
+      .then(r => r.json())
+      .then(data => setRelease(data))
+      .catch(() => {})
+      .finally(() => setLoadingRel(false));
+  }, [tab]);
+
+  // Platform aniqlash
+  const ua         = navigator.userAgent.toLowerCase();
+  const isWindows  = ua.includes("win");
+  const isMac      = ua.includes("mac") && !ua.includes("iphone") && !ua.includes("ipad");
+  const isAndroid  = ua.includes("android");
+  const isIOS      = /iphone|ipad|ipod/.test(ua);
+  const isElectron = !!window.electronAPI?.isElectron;
+
+  // Versiyani topish
+  const getAsset = (name) => release?.assets?.find(a =>
+    a.name.toLowerCase().includes(name.toLowerCase())
+  );
+  const winSetup  = getAsset("setup") || getAsset(".exe");
+  const winPortable = release?.assets?.find(a => a.name.includes(".exe") && !a.name.toLowerCase().includes("setup"));
+  const apk       = getAsset(".apk");
+  const aab       = getAsset(".aab");
+  const ipa       = getAsset(".ipa");
+  const version   = release?.tag_name || "v2.1.0";
+
+  const savePwd = async () => {
+    if (!newPwd || newPwd.length < 6) return toast("Parol kamida 6 ta belgi", "warning");
+    if (!user?.id) return toast("Parolni faqat tizimda ro'yxatdan o'tgan foydalanuvchilar o'zgartirishi mumkin", "warning");
+    setSaving(true);
+    const { error } = await db.from("app_users").update({ password: newPwd }).eq("id", user.id);
+    setSaving(false);
+    if (error) return toast(error.message, "error");
+    toast("Parol yangilandi");
+    setEditPwd(false); setNewPwd("");
+  };
+
+  const roleColors = { superadmin:"#4f6ef7", admin:"#7c3aed", teacher:"#10b981", reception:"#f59e0b", student:"#06b6d4" };
+  const roleLabels = { superadmin:"Superadmin", admin:"Admin", teacher:"O'qituvchi", reception:"Resepshen", student:"Talaba" };
+
+  const PLATFORMS = [
+    {
+      id: "windows", label: "Windows", icon: "🖥️",
+      desc: "Windows 10/11 uchun dastur (x64)",
+      color: "#0078d4", bg: "#eff6ff",
+      primary: winSetup,
+      secondary: winPortable,
+      primaryLabel: "Setup (.exe) yuklab olish",
+      secondaryLabel: "Portable (.exe)",
+      isCurrent: isWindows && !isElectron,
+      badge: isElectron ? "Hozir ishlatyapsiz" : null,
+    },
+    {
+      id: "android", label: "Android", icon: "🤖",
+      desc: "Android 7.0+ uchun (API 24+)",
+      color: "#3ddc84", bg: "#f0fdf4",
+      primary: apk,
+      secondary: aab,
+      primaryLabel: "APK yuklab olish (o'rnatuvchi)",
+      secondaryLabel: "AAB (Google Play uchun)",
+      isCurrent: isAndroid,
+      badge: null,
+    },
+    {
+      id: "ios", label: "iOS", icon: "🍎",
+      desc: "iPhone va iPad uchun (iOS 14+)",
+      color: "#555555", bg: "#f5f5f5",
+      primary: ipa,
+      secondary: null,
+      primaryLabel: "IPA yuklab olish (TestFlight)",
+      secondaryLabel: null,
+      isCurrent: isIOS,
+      badge: null,
+    },
+  ];
+
+  const currentPlatform = PLATFORMS.find(p => p.isCurrent);
+
+  return (
+    <div className="backdrop" onClick={e => e.target === e.currentTarget && onClose()} style={{alignItems:"flex-end",justifyContent:"flex-end",padding:0}}>
+      <div style={{
+        width: 480, height:"100vh", background:"var(--card)",
+        boxShadow:"-8px 0 40px rgba(15,17,23,.18)",
+        display:"flex", flexDirection:"column",
+        animation:"slideInRight .25s var(--spring)",
+        overflowY:"auto",
+      }}>
+        {/* Header */}
+        <div style={{padding:"24px 24px 0",position:"sticky",top:0,background:"var(--card)",zIndex:10,borderBottom:"1px solid var(--line)",paddingBottom:0}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+            <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:18,color:"var(--t1)"}}>Profil</div>
+            <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:"var(--t4)",display:"flex",padding:4}}>
+              <X size={18}/>
+            </button>
+          </div>
+          {/* User card */}
+          <div style={{display:"flex",alignItems:"center",gap:14,padding:"16px 0 20px"}}>
+            <div style={{
+              width:56,height:56,borderRadius:"50%",
+              background:user?.color || "var(--brand)",
+              display:"flex",alignItems:"center",justifyContent:"center",
+              color:"#fff",fontSize:20,fontWeight:900,flexShrink:0,
+              boxShadow:`0 4px 16px ${user?.color || "var(--brand)"}55`,
+            }}>
+              {(user?.name || user?.username || "U").slice(0,2).toUpperCase()}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:16,color:"var(--t1)"}}>{user?.name || user?.username || "Foydalanuvchi"}</div>
+              <div style={{fontSize:12,color:"var(--t4)",marginTop:3,display:"flex",alignItems:"center",gap:8}}>
+                <span style={{background:roleColors[user?.role]+"22",color:roleColors[user?.role],padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>
+                  {roleLabels[user?.role] || user?.role}
+                </span>
+                <span style={{display:"flex",alignItems:"center",gap:4,color:"var(--green)"}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:"var(--green)",display:"inline-block"}}/>
+                  Online
+                </span>
+              </div>
+            </div>
+          </div>
+          {/* Tabs */}
+          <div style={{display:"flex",gap:2,marginBottom:0}}>
+            {[["profile","👤 Profil"],["download","📥 Ilovalar"],["password","🔐 Parol"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setTab(id)} style={{
+                padding:"10px 16px",border:"none",background:"none",cursor:"pointer",
+                fontSize:12.5,fontWeight:600,
+                color:tab===id?"var(--brand)":"var(--t4)",
+                borderBottom:tab===id?"2px solid var(--brand)":"2px solid transparent",
+                transition:"all .15s",
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* === PROFIL TAB === */}
+        {tab === "profile" && (
+          <div style={{padding:24,display:"flex",flexDirection:"column",gap:14}}>
+            {[
+              ["Ism",       user?.name     || "—"],
+              ["Username",  user?.username || "—"],
+              ["Rol",       roleLabels[user?.role] || user?.role || "—"],
+              ["Guruh",     user?.group_name || "—"],
+              ["ID",        user?.id ? user.id.slice(0,8)+"..." : "builtin"],
+            ].map(([l,v])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"12px 0",borderBottom:"1px solid var(--line2)"}}>
+                <span style={{fontSize:13,color:"var(--t4)",fontWeight:500}}>{l}</span>
+                <span style={{fontSize:13,color:"var(--t1)",fontWeight:700,fontFamily:"monospace"}}>{v}</span>
+              </div>
+            ))}
+            <button className="btn btn-danger" style={{marginTop:8,width:"100%"}} onClick={()=>{onClose();onLogout();}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline",marginRight:6}}>
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              Tizimdan chiqish
+            </button>
+          </div>
+        )}
+
+        {/* === ILOVALAR TAB === */}
+        {tab === "download" && (
+          <div style={{padding:24,display:"flex",flexDirection:"column",gap:16}}>
+            {/* Header */}
+            <div style={{background:"linear-gradient(135deg,var(--brand3),rgba(168,85,247,.06))",borderRadius:14,padding:"16px 18px",border:"1px solid var(--brand-brd)"}}>
+              <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:14,color:"var(--brand)",marginBottom:4}}>
+                X-MASTER Pro {loadingRel ? "..." : version}
+              </div>
+              <div style={{fontSize:12,color:"var(--t3)"}}>
+                Kompyuter, Android va iOS qurilmalar uchun ilovalar
+              </div>
+              <a href={RELEASES_URL} target="_blank" rel="noreferrer"
+                style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:8,fontSize:11,color:"var(--brand)",fontWeight:600,textDecoration:"none"}}>
+                <ExternalLink size={11}/> Barcha versiyalar (GitHub)
+              </a>
+            </div>
+
+            {/* Hozirgi platforma birinchi */}
+            {currentPlatform && (
+              <div style={{background:"var(--green-bg)",border:"1.5px solid var(--green-b)",borderRadius:12,padding:"10px 14px",fontSize:12,color:"var(--green)",fontWeight:600,display:"flex",alignItems:"center",gap:8}}>
+                <CheckCircle2 size={14}/>
+                Siz hozir {currentPlatform.label} da ishlayapsiz
+              </div>
+            )}
+
+            {loadingRel && (
+              <div style={{textAlign:"center",padding:20,color:"var(--t4)"}}>
+                <RefreshCw size={20} className="spin" style={{margin:"0 auto 8px"}}/>
+                <div>Yuklanmoqda...</div>
+              </div>
+            )}
+
+            {/* Platforma kartalar */}
+            {PLATFORMS.map(plat => (
+              <div key={plat.id} style={{
+                background:plat.isCurrent?"linear-gradient(135deg,"+plat.bg+",white)":plat.bg,
+                border:`1.5px solid ${plat.isCurrent?plat.color:"transparent"}`,
+                borderRadius:16, padding:18,
+                boxShadow:plat.isCurrent?`0 4px 20px ${plat.color}22`:"var(--sh1)",
+                transition:"all .2s",
+              }}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                  <span style={{fontSize:28}}>{plat.icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontFamily:"'Plus Jakarta Sans',sans-serif",fontWeight:800,fontSize:15,color:"var(--t1)",display:"flex",alignItems:"center",gap:8}}>
+                      {plat.label}
+                      {plat.badge && <span style={{background:plat.color,color:"#fff",fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20}}>{plat.badge}</span>}
+                      {plat.isCurrent && !plat.badge && <span style={{background:plat.color+"22",color:plat.color,fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20}}>Sizning qurilmangiz</span>}
+                    </div>
+                    <div style={{fontSize:11.5,color:"var(--t4)",marginTop:2}}>{plat.desc}</div>
+                  </div>
+                </div>
+
+                {/* Download tugmalar */}
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {plat.primary ? (
+                    <a href={plat.primary.browser_download_url} target="_blank" rel="noreferrer"
+                      style={{
+                        display:"flex",alignItems:"center",justifyContent:"space-between",
+                        padding:"11px 16px",borderRadius:10,textDecoration:"none",
+                        background:plat.color,color:"#fff",
+                        fontWeight:700,fontSize:13,
+                        boxShadow:`0 4px 16px ${plat.color}44`,
+                        transition:"opacity .15s",
+                      }}
+                      onMouseEnter={e=>e.currentTarget.style.opacity=".9"}
+                      onMouseLeave={e=>e.currentTarget.style.opacity="1"}
+                    >
+                      <span style={{display:"flex",alignItems:"center",gap:8}}>
+                        <Download size={14}/> {plat.primaryLabel}
+                      </span>
+                      <span style={{fontSize:11,opacity:.8}}>
+                        {plat.primary.size ? Math.round(plat.primary.size/1024/1024)+"MB" : ""}
+                      </span>
+                    </a>
+                  ) : (
+                    <a href={RELEASES_URL} target="_blank" rel="noreferrer"
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"11px 16px",borderRadius:10,textDecoration:"none",background:"var(--card2)",color:"var(--t3)",fontWeight:600,fontSize:13,border:"1.5px dashed var(--line)"}}>
+                      <Download size={14}/> {plat.primaryLabel}
+                      <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>Build kutilmoqda...</span>
+                    </a>
+                  )}
+
+                  {plat.secondary && (
+                    <a href={plat.secondary.browser_download_url || plat.secondary.url} target="_blank" rel="noreferrer"
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:10,textDecoration:"none",background:"var(--card)",color:plat.color,fontWeight:600,fontSize:12,border:`1.5px solid ${plat.color}33`}}>
+                      <Download size={12}/> {plat.secondaryLabel}
+                      <span style={{marginLeft:"auto",fontSize:11,color:"var(--t5)"}}>
+                        {plat.secondary.size ? Math.round(plat.secondary.size/1024/1024)+"MB" : ""}
+                      </span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* O'rnatish yo'riqnomasi */}
+            <div style={{background:"var(--card2)",borderRadius:12,padding:16,border:"1px solid var(--line)"}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:10,color:"var(--t1)"}}>📋 O'rnatish yo'riqnomasi</div>
+              {[
+                {p:"🖥️ Windows", s:"Setup.exe ni yuklab, ishga tushiring va o'rnating"},
+                {p:"🤖 Android", s:"APK ni yuklab, Sozlamalar → Noma'lum manbalar → O'rnatish"},
+                {p:"🍎 iOS",     s:"IPA ni yuklab, Xcode → Devices yoki TestFlight orqali o'rnating"},
+              ].map(({p,s})=>(
+                <div key={p} style={{fontSize:12,color:"var(--t3)",marginBottom:6,display:"flex",gap:8}}>
+                  <span style={{fontWeight:700,flexShrink:0}}>{p}:</span> {s}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* === PAROL TAB === */}
+        {tab === "password" && (
+          <div style={{padding:24,display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{background:"var(--brand3)",borderRadius:12,padding:14,border:"1px solid var(--brand-brd)",fontSize:12,color:"var(--brand)",fontWeight:500}}>
+              Parolni o'zgartirish faqat Supabase tizimiga kirgan foydalanuvchilar uchun ishlaydi (app_users jadvali).
+              Builtin admin/teacher hisoblari uchun developers ga murojaat qiling.
+            </div>
+            {!editPwd ? (
+              <button className="btn btn-primary" onClick={()=>setEditPwd(true)}>
+                <ShieldOff size={13}/> Parolni o'zgartirish
+              </button>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <label style={{display:"flex",flexDirection:"column",gap:5}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--t3)"}}>Yangi parol (kamida 6 ta belgi)</span>
+                  <div style={{position:"relative"}}>
+                    <input type="password" value={newPwd} onChange={e=>setNewPwd(e.target.value)} placeholder="Yangi parol..."
+                      style={{width:"100%",paddingRight:40}} autoFocus
+                      onKeyDown={e=>e.key==="Enter"&&savePwd()}/>
+                  </div>
+                </label>
+                <div style={{display:"flex",gap:8}}>
+                  <button className="btn btn-primary btn-sm" onClick={savePwd} disabled={saving}>
+                    {saving?<><RefreshCw size={12} className="spin"/> Saqlanmoqda</>:<><Save size={12}/> Saqlash</>}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>{setEditPwd(false);setNewPwd("");}}>Bekor</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
