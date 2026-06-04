@@ -10,7 +10,24 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-electron
+dist-mobile
 *.local
+
+# Build outputs — too large for GitHub
+release/
+release-android/
+
+# iOS / Android native
+ios/
+android/
+
+# Electron binaries
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
 
 # Editor directories and files
 .vscode/*
